@@ -7,6 +7,8 @@ same seed reproduces the same field on any machine.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 _PERM_SIZE = 512
@@ -111,10 +113,25 @@ def ridged(
 
 
 def coordinate_grid(width: int, height: int, aspect: float = 1.0) -> tuple[np.ndarray, np.ndarray]:
-    """A unit-square coordinate mesh, stretched to the pixel aspect ratio."""
+    """A unit-square coordinate mesh, stretched to the pixel aspect ratio.
+
+    x spans 0..1 and y spans 0..aspect, so the mesh is isotropic in pixel terms
+    and a feature stays round rather than being stretched by the canvas shape.
+
+    Because the lattice is indexed modulo 256 in both axes, `aspect` also has to
+    be an integer for the field to tile vertically. Callers pass the reduced
+    ratio so a 16:9 canvas gets 16/9 rather than 1.7777..., which would break
+    the wrap and produce a visible seam.
+    """
     xs = np.linspace(0.0, 1.0, width, dtype=np.float64)
-    ys = np.linspace(0.0, 1.0 * aspect, height, dtype=np.float64)
+    ys = np.linspace(0.0, aspect, height, dtype=np.float64)
     return np.meshgrid(xs, ys)
+
+
+def tileable_aspect(width: int, height: int) -> float:
+    """The canvas aspect ratio reduced to whole units for a seamless field."""
+    divisor = math.gcd(int(width), int(height))
+    return (int(width) // divisor) / (int(height) // divisor)
 
 
 def worley(

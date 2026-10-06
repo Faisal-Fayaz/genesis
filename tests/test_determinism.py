@@ -12,12 +12,12 @@ from genesis.recipe import Recipe, random_recipe
 from genesis.rng import stream
 
 # Schemas reject unknown keys, so each generator gets only its own parameters,
-# all chosen at the low end of their ranges to keep tests fast.
+# all chosen at the low end of their ranges to keep tests fast. Values must stay
+# within each schema's declared bounds.
 TINY_PARAMS: dict[str, dict[str, int]] = {
     "attractor": {"points": 20000, "warmup": 50, "supersample": 1},
-    "flowfield": {"trails": 400, "steps": 30, "supersample": 1},
+    "flowfield": {"trails": 1000, "steps": 30, "supersample": 1},
 }
-
 
 def tiny(generator: str, **overrides: object) -> Recipe:
     params = dict(TINY_PARAMS[generator])

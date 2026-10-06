@@ -44,17 +44,31 @@ def scatter_add(
 ) -> None:
     """Accumulate `values` into a flattened buffer at the given pixel indices.
 
-    `np.bincount` is several times faster than `np.add.at` here because it
-    accumulates in compiled C rather than through fancy-indexing assignment.
-    The buffer is updated in place and keeps its shape.
+    `np.bincount` is several times faster than `np.add.at` because it accumulates
+    in compiled C rather than through fancy-indexing assignment.
+
+    The write-back deliberately goes through `buffer.reshape(-1)`, a view of the
+    pixel axis, and never through a column of a 2D reshape. Reshaping to
+    `(size, channels)` makes each column a *strided* view, and assigning through
+    one of those fails silently: numpy resolves the temporary and the result is
+    written back to a copy, so contributions vanish without any error. Verified
+    by the tests in `test_common.py`.
     """
-    size = buffer.size
-    flat = buffer.reshape(size, -1)
-    # A 2D buffer is a single-channel map; only 3D+ carries a channel axis.
-    channels = 1 if buffer.ndim <= 2 else flat.shape[1]
-    for channel in range(channels):
-        weights = values if values.ndim == 1 else values[:, channel]
-        flat[:, channel] += np.bincount(flat_indices, weights=weights, minlength=size)
+    if buffer.ndim <= 2:
+        flat = buffer.reshape(-1)
+        flat += np.bincount(
+            flat_indices, weights=np.ravel(values), minlength=flat.size
+        )
+        return
+
+    # minlength is the size of *one* plane, so each channel accumulates over the
+    # pixel axis only.
+    plane_size = buffer.size // buffer.shape[-1]
+    for channel in range(buffer.shape[-1]):
+        plane = buffer[..., channel].reshape(-1)
+        plane += np.bincount(
+            flat_indices, weights=values[:, channel], minlength=plane_size
+        )
 
 
 class SplatAccumulator:

@@ -94,10 +94,27 @@ def build_parser() -> argparse.ArgumentParser:
     gen_random.add_argument(
         "--preview", action="store_true", help="render a small preview instead"
     )
-    gen_random.add_argument("-o", "--output", type=Path, help="output PNG path")
+    gen_random.add_argument(
+        "--post",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="override a post option, e.g. --post grain=0.04",
+    )
+    gen_random.add_argument(
+        "--param",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="override a generator parameter, e.g. --param trails=8000",
+    )
     gen_random.add_argument(
         "--no-save", action="store_true", help="do not write the recipe beside the image"
     )
+    gen_random.add_argument(
+        "-q", "--quiet", action="store_true", help="print only the image path"
+    )
+    gen_random.add_argument("-o", "--output", type=Path, help="output PNG path")
 
     listing = sub.add_parser("list", help="list generators or palettes")
     listing.add_argument(
@@ -234,6 +251,13 @@ def cmd_gen_random(args: argparse.Namespace) -> int:
 
     try:
         recipe = random_recipe(args.generator, rng=entropy, **overrides)
+        changes: dict[str, Any] = {}
+        if args.param:
+            changes["params"] = {**recipe.params, **_parse_assignments(args.param, "param")}
+        if args.post:
+            changes["post"] = {**recipe.post, **_parse_assignments(args.post, "post")}
+        if changes:
+            recipe = recipe.with_changes(**changes)
     except (ValueError, KeyError) as exc:
         return _error(_clean(exc))
 
@@ -250,6 +274,10 @@ def cmd_gen_random(args: argparse.Namespace) -> int:
     if not args.no_save:
         recipe_path = target.with_suffix(".json")
         recipe.save(recipe_path)
+
+    if args.quiet:
+        print(target)
+        return 0
 
     print(
         json.dumps(

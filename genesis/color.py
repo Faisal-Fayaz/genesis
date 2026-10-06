@@ -126,7 +126,11 @@ class Palette:
         return f"Palette(name={self.name!r}, colors={self.colors!r})"
 
     def to_linear(self, t: float | np.ndarray) -> np.ndarray:
-        """Sample the ramp in Oklab and return linear-light RGB.
+        """Sample the ramp in Oklab and return **linear-light** RGB.
+
+        The render pipeline works in linear light and converts to sRGB once, at
+        the very end. Mixing in sRGB here would double-encode the values and make
+        every contrast or grade operation behave wrongly.
 
         `t` outside [0, 1] clamps to the end stops, so callers can overshoot
         without bounds-checking every draw.
@@ -138,11 +142,15 @@ class Palette:
         high = np.minimum(low + 1, len(self.colors) - 1)
         frac = (positions - low)[..., None]
         lab = self._oklab[low] * (1.0 - frac) + self._oklab[high] * frac
-        rgb = linear_to_srgb(oklab_to_linear(lab))
+        rgb = oklab_to_linear(lab)
         return rgb[0] if scalar else rgb
 
+    def to_srgb(self, t: float | np.ndarray) -> np.ndarray:
+        """Sample the ramp and return sRGB-encoded RGB, for display or preview."""
+        return linear_to_srgb(self.to_linear(t))
+
     def to_hex(self, t: float) -> str:
-        return rgb_to_hex(self.to_linear(t))
+        return rgb_to_hex(self.to_srgb(t))
 
     def rotated(self, amount: float) -> Palette:
         """Return the same stops with the ramp's starting point shifted."""

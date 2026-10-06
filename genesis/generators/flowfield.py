@@ -25,12 +25,12 @@ SCHEMA = build_schema(
         ParamSpec(
             "trails",
             "int",
-            4000,
-            minimum=100,
-            maximum=60000,
-            step=100,
+            24000,
+            minimum=1000,
+            maximum=300000,
+            step=1000,
             label="Trail count",
-            help="How many particles to trace",
+            help="How many particles to trace, scaled up with canvas size",
         ),
         ParamSpec(
             "steps",
@@ -45,12 +45,12 @@ SCHEMA = build_schema(
         ParamSpec(
             "scale",
             "float",
-            3.0,
+            1.5,
             minimum=0.25,
             maximum=24.0,
             step=0.25,
             label="Field scale",
-            help="Frequency of the noise field; lower is broader",
+            help="Noise cells across the image; lower is broader",
         ),
         ParamSpec(
             "detail",
@@ -168,7 +168,13 @@ def _render(
     xs, ys = noise.coordinate_grid(work_w, work_h, aspect)
     angle = _angle_field(noise.permutation_table(stream(seed, "field")), xs, ys, params)
 
-    trails = int(params["trails"])
+    # Ink is specified relative to a reference area so that a recipe previewed at
+    # 480p looks like the same composition at 1080p: trails scale up with the
+    # canvas so strokes keep a constant density. The count is floored at the
+    # requested value, because scaling *down* for a small preview starves the
+    # image and the particles converge onto a handful of pixels instead of
+    # spreading across the field.
+    trails = min(MAX_TRAILS, round(int(params["trails"]) * _edge_ratio(work_w, work_h)))
     steps = int(params["steps"])
     step_x = float(params["step_size"]) * work_w
     step_y = float(params["step_size"]) * work_h
@@ -192,10 +198,8 @@ def _render(
 
     accumulator = SplatAccumulator(color_sum, weight_sum)
 
-    # Total ink is fixed by trail/step counts, so ink per pixel falls as area
-    # grows. Scaling weight by area keeps a composition's exposure identical at
-    # preview and 1080p, which is what lets parameters be tuned cheaply.
-    area_scale = (work_w * work_h) / REFERENCE_AREA
+    # Trails now scale with area, so weight per pixel stays constant and no
+    # compensating ink scale is needed.
 
     for step in range(steps):
         col = np.clip(pos_x.astype(np.int64), 0, work_w - 1)
@@ -206,7 +210,7 @@ def _render(
 
         progress = step / max(steps - 1, 1)
         fade = (1.0 - progress) ** 1.6
-        weights = (energy * fade * phase_decay(progress) * area_scale) / sub_samples
+        weights = (energy * fade * phase_decay(progress)) / sub_samples
 
         position_t = np.linspace(0.0, 1.0, sub_samples)[None, :]
         sample_x = pos_x[:, None] + (next_x - pos_x)[:, None] * position_t
@@ -235,6 +239,8 @@ def _render(
         escaped = (pos_x < 0) | (pos_x >= work_w) | (pos_y < 0) | (pos_y >= work_h)
         if escaped.any():
             # np.where evaluates both branches, so draws stay full-size.
+            # Respawn anywhere on the canvas: restarting near the exit point
+            # makes trails retrace one path, which collapses coverage.
             pos_x = np.where(escaped, rng.random(trails) * work_w, pos_x)
             pos_y = np.where(escaped, rng.random(trails) * work_h, pos_y)
             phase = np.where(escaped, rng.random(trails) * 0.35, phase)
@@ -247,18 +253,50 @@ def _render(
     averaged = np.zeros_like(color_sum)
     averaged[lit] = color_sum[lit] / weight_sum[lit][:, None]
 
-    exposure = float(params["exposure"])
-    density = 1.0 - np.exp(-weight_sum * exposure)
-    result = averaged * density[..., None]
+    # Ink is referenced to a high percentile of the pixels that actually received a
+    # stroke, not to the peak. Particle trails cross unevenly: a few pixels where
+    # many strokes pile up can be orders of magnitude above the typical lit
+    # pixel. Referencing the peak would then leave every ordinary stroke invisible
+    # and the image almost entirely background.
+    lit_weights = weight_sum[weight_sum > 0.0]
+    if lit_weights.size == 0:
+        return np.tile(palette.to_linear(0.0), (work_h, work_w, 1))
+    reference = float(np.percentile(lit_weights, 90.0))
+    if reference <= 1e-12:
+        return np.tile(palette.to_linear(0.0), (work_h, work_w, 1))
 
+    density = 1.0 - np.exp(
+        -weight_sum * (float(params["exposure"]) * _EXPOSURE_REFERENCE / reference)
+    )
+
+    # Fill the field with the palette's darkest stop first, then lay strokes
+    # over it. Compositing onto black instead would make an empty canvas read as
+    # a void rather than as the deliberate dark end of the ramp.
     background = palette.to_linear(0.0)
-    result = background * (1.0 - density[..., None]) + result
-    contrast = float(params["contrast"])
-    result = np.clip((result - 0.5) * contrast + 0.5, 0.0, 1.0)
+    result = background + averaged * density[..., None]
+    result = np.clip(result, 0.0, 1.0)
     return result
 
 
-REFERENCE_AREA = 1_920.0 * 1_080.0
+# Ink scales with the longest edge, not with area. A trail is a curve of fixed
+# length *relative to the canvas* (step_size is a fraction of the image), so its
+# pixel length grows linearly with resolution while the area to cover grows
+# quadratically. Scaling trails by the edge therefore holds stroke density
+# constant; scaling by area would over-provision quadratically.
+REFERENCE_EDGE = 960.0
+
+# Cap on trails after scaling. Coverage saturates well before this, and the cap
+# keeps a 4K render from spending minutes on strokes past the point of visible
+# difference.
+MAX_TRAILS = 300_000
+
+# The densest pixel reaches roughly this fraction of full brightness at
+# exposure 1.0.
+_EXPOSURE_REFERENCE = 2.5
+
+
+def _edge_ratio(work_w: int, work_h: int) -> float:
+    return max(work_w, work_h) / REFERENCE_EDGE
 
 
 def phase_decay(progress: float) -> float:
