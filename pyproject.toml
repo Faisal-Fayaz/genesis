@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genesis"
+version = "0.1.0"
+description = "Deterministic procedural wallpaper engine driven by git-able recipes"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy==2.5.3",
+    "pillow==11.3.0",
+]
+
+[project.scripts]
+genesis = "genesis.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["genesis*"]
+
+[tool.setuptools.package-data]
+genesis = ["web/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
