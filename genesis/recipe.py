@@ -19,6 +19,7 @@ from . import post as post_module
 from . import registry
 from .canon import canonical_json, derive_seed
 from .color import Palette
+from .rng import random_seed, stream, uniform
 
 RECIPE_VERSION = 1
 PRESETS: dict[str, list[str]] = {
@@ -49,6 +50,11 @@ class Recipe:
         self.validate()
 
     def validate(self) -> Recipe:
+        # Loading a recipe has to work on its own. Without this, `Recipe.load`
+        # only succeeds if something happened to import a generator first, which
+        # leaves the library's stored recipes unreadable from a fresh process.
+        registry.ensure_loaded()
+
         if self.version != RECIPE_VERSION:
             raise ValueError(
                 f"recipe version {self.version} is not supported (expected {RECIPE_VERSION})"
@@ -164,8 +170,6 @@ def random_recipe(
     **overrides: Any,
 ) -> Recipe:
     """Build a recipe with randomized parameters inside their valid ranges."""
-    from .rng import random_seed, stream, uniform
-
     registry.ensure_loaded()
     if generator_name is None:
         if rng is None:
@@ -184,15 +188,9 @@ def random_recipe(
         elif spec.kind == "bool":
             params[spec.name] = bool(seed_source.random() < 0.5)
         elif spec.kind in ("int", "float"):
-            low = spec.minimum if spec.minimum is not None else float(spec.default) - 1.0
-            high = spec.maximum if spec.maximum is not None else float(spec.default) + 1.0
-            # Bias toward the declared default so random recipes stay usable.
-            value = uniform(seed_source, low, high)
-            middle = float(spec.default)
-            value = 0.65 * value + 0.35 * middle
-            params[spec.name] = (
-                round(value) if spec.kind == "int" else float(np.clip(value, low, high))
-            )
+            params[spec.name] = _sample_number(spec, seed_source)
+        elif spec.kind == "color":
+            params[spec.name] = _sample_color(spec, seed_source)
     palette_names = sorted(PRESETS)
     palette_name = palette_names[int(seed_source.integers(len(palette_names)))]
     fields: dict[str, Any] = {
@@ -203,3 +201,114 @@ def random_recipe(
     }
     fields.update(overrides)
     return Recipe(**fields)
+
+
+# Parameters whose cost multiplies with other parameters, so a random draw near
+# the top of every range at once is not merely large but combinatorial. Kept
+# adjacent to the sampling code so a new expensive parameter is accounted for
+# here rather than discovered as a one-minute render.
+# How far up its declared range a random draw may reach. A value of 1.0 allows
+# the full range.
+#
+# These exist because the costs multiply. `trails` sets the length of a vectorized
+# step and `steps` sets how many there are, so drawing both near their maxima
+# costs the product: a random flowfield at supersample 2 took 52s at 1080p
+# against 9s for the defaults. Every generator's render-time budget is roughly
+# proportional to trails x steps x supersample^2, so each factor is capped well
+# below its own maximum and the product lands in a sane range.
+# How far a random draw may travel from one end of a parameter's range. A value
+# of 1.0 allows the full range.
+#
+# `COSTLY` holds render-time multipliers down, because their costs multiply:
+# `trails` sets the length of a vectorized step and `steps` sets how many there
+# are, so drawing both near their maxima costs the product. A random flowfield
+# at supersample 2 took 52s at 1080p against 9s for the defaults.
+COSTLY = {
+    "trails": 0.12,
+    "steps": 0.25,
+    "points": 0.35,
+    "warmup": 0.15,
+    "supersample": 0.0,  # never above the default, which is already correct
+    "detail": 0.5,
+}
+
+# Parameters that decide how bright or saturated the result looks. Their full
+# ranges are there so a person can push past the defaults deliberately, but a
+# random draw across the range produces a blown-out or muddy image rather than a
+# variation of a good one: `hue_bias` at +0.55 more than doubled the mean
+# luminance of a flowfield and washed out the dark end of the palette.
+MOOD = {
+    "hue_bias": 0.30,
+    "exposure": 0.35,
+    "contrast": 0.25,
+    "saturation": 0.25,
+    "gamma": 0.35,
+    "zoom": 0.35,
+    "brightness": 0.25,
+    "lift": 0.2,
+}
+
+# Parameters that decide the *character* of a composition rather than its tone.
+# Their ranges are wide because a person may want, say, a very broad field. A
+# random draw across the whole range lands somewhere uninteresting instead of
+# somewhere good: a flowfield at scale 13.8 with 7 octaves produced coarse
+# mottled noise, where the tuned scale 1.5 gives layered silk. Held near the
+# default, so "random" varies a composition rather than replacing it.
+STRUCTURE = {
+    "scale": 0.25,
+    "turns": 0.3,
+    "detail": 0.4,
+    "step_size": 0.3,
+    "steps": 0.25,
+}
+
+
+def _sample_number(spec: Any, rng: Any) -> float | int:
+    """Draw a parameter value that is varied, affordable, and still looks good.
+
+    Two caps apply. Expensive parameters (`COSTLY`) are held near the low end of
+    their range, because their costs multiply. Parameters that control tone
+    (`MOOD`) are held near their default, because the range was widened for
+    deliberate experimentation and a random draw at its top produces a
+    blown-out image. Everything else is free across its full range.
+    """
+    default = float(spec.default)
+    low = float(spec.minimum) if spec.minimum is not None else default - 1.0
+    high = float(spec.maximum) if spec.maximum is not None else default + 1.0
+
+    if spec.name in COSTLY:
+        fraction = COSTLY[spec.name]
+        # Capping below the default is a no-op for parameters whose default is
+        # already low, and holds the rest down to where a render stays quick.
+        high = min(high, low + (high - low) * fraction)
+
+    # Center the tone and structure caps on the default, so they constrain
+    # deviation in both directions rather than only truncating upward.
+    for table in (MOOD, STRUCTURE):
+        if spec.name in table:
+            span = (high - low) * table[spec.name]
+            low = max(low, default - span)
+            high = min(high, default + span)
+
+    value = uniform(rng, low, high)
+    value = 0.65 * value + 0.35 * default
+    value = float(np.clip(value, min(low, high), max(low, high)))
+    return round(value) if spec.kind == "int" else value
+
+
+def _sample_color(spec: Any, rng: Any) -> str:
+    """Draw a color near the declared default rather than anywhere in the cube.
+
+    Fully random colors are usually muddy or too bright to read text over, which
+    makes for a wallpaper nobody keeps.
+    """
+    base = str(spec.default).lstrip("#")
+    channels = [
+        int(base[index : index + 2], 16)
+        for index in (0, 2, 4)
+    ]
+    nudged = [
+        int(np.clip(channel + float(uniform(rng, -24, 24)), 0, 255))
+        for channel in channels
+    ]
+    return "#" + "".join(f"{channel:02x}" for channel in nudged)

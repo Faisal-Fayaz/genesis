@@ -1,0 +1,17 @@
+[Unit]
+Description=Genesis daily wallpaper
+
+# Renders or reuses a wallpaper and sets it as the desktop background.
+# Safe to run more than once: the day seeds the choice, so a retry produces the
+# same result rather than a second surprise.
+
+[Service]
+Type=oneshot
+# The session bus address is inherited only when the unit is started from within
+# a user session. Without it, gsettings exits 0 while changing nothing, so
+# genesis checks for a session and skips rather than appearing to succeed.
+ExecStart=%h/projects/genesis/.venv/bin/python -m genesis.cli daily
+TimeoutStartSec=900
+
+[Install]
+WantedBy=timers.target

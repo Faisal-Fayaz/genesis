@@ -1,0 +1,13 @@
+[Unit]
+Description=Change the wallpaper once a day
+
+[Timer]
+# Soon after login, when the session bus exists and there is someone to see it.
+# RandomizedDelaySec keeps this from looking automated on a machine that is
+# checked at the same minute every day.
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+RandomizedDelaySec=1800
+
+[Install]
+WantedBy=timers.target

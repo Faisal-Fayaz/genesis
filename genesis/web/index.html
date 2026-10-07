@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Genesis</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>Genesis</h1>
+  <div class="header-actions">
+    <span id="status" class="status"></span>
+    <button id="random" class="primary">Surprise me</button>
+  </div>
+</header>
+
+<main>
+  <aside id="library">
+    <div class="library-head">
+      <h2>Library</h2>
+      <div class="filters">
+        <select id="filter-generator"><option value="">All generators</option></select>
+        <select id="filter-palette"><option value="">All palettes</option></select>
+        <label class="starred-toggle">
+          <input type="checkbox" id="filter-starred"> Starred only
+        </label>
+      </div>
+    </div>
+    <div id="pieces" class="pieces"></div>
+    <p id="library-empty" class="empty" hidden>Nothing rendered yet.</p>
+  </aside>
+
+  <section id="editor">
+    <div class="editor-head">
+      <h2>Compose</h2>
+      <span id="render-time" class="render-time"></span>
+    </div>
+
+    <form id="recipe-form">
+      <div class="row">
+        <label>Generator
+          <select id="generator" name="generator"></select>
+        </label>
+        <label>Palette
+          <select id="palette" name="palette_name"></select>
+        </label>
+      </div>
+      <div class="row">
+        <label>Width
+          <input type="number" id="width" name="width" min="16" max="16384" step="1">
+        </label>
+        <label>Height
+          <input type="number" id="height" name="height" min="16" max="16384" step="1">
+        </label>
+        <label>Seed
+          <input type="text" id="seed" name="seed" placeholder="derived">
+        </label>
+      </div>
+      <div class="row">
+        <label class="check">
+          <input type="checkbox" id="theme" name="theme" value="light"> Light theme
+        </label>
+      </div>
+
+      <fieldset id="params">
+        <legend>Parameters</legend>
+        <div id="param-grid" class="param-grid"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Post-processing</legend>
+        <div id="post-grid" class="param-grid"></div>
+      </fieldset>
+
+      <div class="row actions">
+        <button type="submit" class="primary">Render</button>
+        <button type="button" id="shuffle">Shuffle params</button>
+        <button type="button" id="copy">Copy recipe</button>
+      </div>
+    </form>
+
+    <div class="preview-wrap">
+      <div id="preview" class="preview">
+        <p class="empty">Render something to see it here.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>
