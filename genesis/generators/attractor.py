@@ -231,6 +231,18 @@ ESCAPE_LIMIT = 1e30
 # Orbits are advanced in lockstep, so the pool size is the batch size.
 POOL_SIZE = 16384
 
+# Points are specified relative to this area, so the same recipe covers the same
+# fraction of the frame at any resolution.
+REFERENCE_AREA = 960.0 * 540.0
+
+# Ceiling on the scaled count. Density saturates well before this, and the cap
+# keeps a 4K render from plotting tens of millions of points.
+MAX_POINTS = 40_000_000
+
+# A very small canvas still needs enough samples to trace the curve; below this
+# fraction of the reference area the curve would show as dots.
+MIN_AREA_RATIO = 0.05
+
 # Hopalong's map is x' = y - d*sgn(x), which is symmetric under sign flips. That
 # makes orbits of opposite sign mirror onto each other and retrace, so the
 # plotted curve collapses to far fewer distinct pixels than the point count
@@ -552,7 +564,16 @@ def _render(
         high_y = low_y + view_y
         span_x, span_y = view_x, view_y
 
-    points = int(params["points"])
+    # Sample count scales with the canvas, matching how flowfield scales its trails.
+    # An absolute count would leave a 4K render with a quarter of the ink density
+    # of a 1080p one, so the same recipe would not look the same at two sizes.
+    # The floor keeps a small preview from starving.
+    # Scale in both directions, not just upward. Coverage is a ratio of samples to
+    # pixels, so holding it steady means the count tracks the canvas area
+    # exactly. Flooring the ratio at 1.0 would leave a small preview as dense as
+    # a 4K render, which is exactly backwards.
+    area_ratio = max(MIN_AREA_RATIO, (work_w * work_h) / REFERENCE_AREA)
+    points = min(MAX_POINTS, max(1, round(int(params["points"]) * area_ratio)))
     # The pool is the pool: one vectorized step yields POOL_SIZE points, so a
     # batch larger than that would plot coordinates twice.
     batch = min(POOL_SIZE, max(points // 24, 4096))

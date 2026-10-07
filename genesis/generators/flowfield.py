@@ -25,12 +25,12 @@ SCHEMA = build_schema(
         ParamSpec(
             "trails",
             "int",
-            24000,
+            12000,
             minimum=1000,
             maximum=300000,
             step=1000,
             label="Trail count",
-            help="How many particles to trace, scaled up with canvas size",
+            help="Particles to trace, scaled up with canvas size",
         ),
         ParamSpec(
             "steps",
@@ -81,12 +81,12 @@ SCHEMA = build_schema(
         ParamSpec(
             "step_size",
             "float",
-            0.0022,
-            minimum=0.0002,
+            0.0010,
+            minimum=0.0001,
             maximum=0.02,
-            step=0.0002,
+            step=0.0001,
             label="Step size",
-            help="Fraction of the image crossed per step",
+            help="Fraction of the image crossed per step; smaller is finer",
         ),
         ParamSpec(
             "color_count",
@@ -129,11 +129,15 @@ SCHEMA = build_schema(
         ParamSpec(
             "supersample",
             "int",
-            2,
+            1,
             minimum=1,
             maximum=4,
             label="Supersampling",
-            help="Render at N times size and downsample for smoother trails",
+            help=(
+                "Render at N times size and downsample for smoother trails. "
+                "Off by default: it quadruples both memory and time, and the "
+                "finer step size reaches comparable detail without it."
+            ),
         ),
     ]
 )
