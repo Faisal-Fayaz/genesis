@@ -217,6 +217,74 @@ def pick_new(
     return recipe, reason
 
 
+def pick_curated(
+    library: Library,
+    day: datetime.date | None = None,
+    width: int = 1920,
+    height: int = 1080,
+    mood: str | None = None,
+    seed: int | None = None,
+    theme: str = "dark",
+    post: dict[str, Any] | None = None,
+) -> tuple[Any, str]:
+    """Choose one of the hand-picked presets, biased away from recent picks.
+
+    The curated set is the floor for quality: every recipe in it has been looked
+    at and kept. Random draws can still be added on top, but this is what the
+    daily wallpaper uses by default because it cannot produce the coarse noise
+    that prompted the caps in `recipe.py`.
+
+    Presets already rendered into the library are skipped when an unused one is
+    available, so the rotation actually rotates. `mood` narrows the pool for the
+    interface, which is the only thing that needs to expose that choice.
+    """
+    from . import presets as curated_presets
+
+    day = day if day is not None else datetime.now(UTC).astimezone().date()
+    entropy = stream(seed if seed is not None else _day_seed(day), "curated")
+
+    pool = list(
+        curated_presets.for_mood(mood) if mood else curated_presets.CURATED
+    )
+    if not pool:
+        raise ValueError(f"no curated presets tagged {mood!r}")
+
+    # What is already in the library, keyed by the parameters that identify a
+    # preset. Seed and size are excluded so the same composition at a new
+    # resolution still counts as seen. Generators with no curated presets
+    # (attractor today) are skipped: they can never match anything in the pool.
+    curated_generators = {preset.generator for preset in pool}
+    seen: set[tuple[Any, ...]] = set()
+    for entry in library.iter_all():
+        if entry.generator not in curated_generators:
+            continue
+        seen.add(_curated_key(entry.recipe_object))
+
+    fresh = [preset for preset in pool if _curated_key(preset.recipe()) not in seen]
+    candidates = fresh or pool
+
+    index = int(entropy.integers(len(candidates)))
+    preset = candidates[index]
+    recipe = preset.recipe(width, height)
+
+    changes: dict[str, Any] = {}
+    if theme != recipe.theme:
+        changes["theme"] = theme
+    if post:
+        changes["post"] = {**recipe.post, **post}
+    if changes:
+        recipe = recipe.with_changes(**changes)
+
+    why = "unused here" if fresh else "all seen, rotating anyway"
+    reason = f"curated {preset.name} ({preset.mood}, {preset.palette}, {why})"
+    return recipe, reason
+
+
+def _curated_key(recipe: Recipe) -> tuple[Any, ...]:
+    """Identity of a composition, independent of seed and output size."""
+    return (recipe.generator, recipe.palette_name, tuple(sorted(recipe.params.items())))
+
+
 def _day_seed(day: datetime.date) -> int:
     """A stable seed for a calendar day."""
     from .canon import stable_hash
@@ -262,14 +330,24 @@ def choose(
     seed: int | None = None,
     theme: str = "dark",
     post: dict[str, Any] | None = None,
+    mood: str | None = None,
+    source: str = "curated",
 ) -> Plan:
     """Decide what to show today.
 
-    `mode` selects the source:
+    `mode` selects what to do with an image that already exists:
       - ``reuse``  prefer something already rendered, and only invent if empty
       - ``new``    always invent a recipe
       - ``auto``   invent one, unless the library is empty or everything is
                    already stale, in which case reusing avoids pointless renders
+
+    `source` selects where a new recipe comes from:
+      - ``curated``  the hand-picked presets, which are all known to look good
+      - ``random``   a randomized draw inside the caps in `recipe.py`
+
+    Curated is the default because it cannot render the coarse noise that the
+    caps only make unlikely. `random` stays available for a wider spread than 15
+    compositions can cover.
 
     Reuse requires the image to still exist, so a library of deleted files falls
     through to generating rather than pointing the desktop at nothing.
@@ -299,6 +377,19 @@ def choose(
             reason=f"reusing {existing.entry.slug} ({_describe_choice(existing)})",
             existing=existing,
         )
+
+    if source == "curated":
+        recipe, reason = pick_curated(
+            library,
+            day=day,
+            width=width,
+            height=height,
+            mood=mood,
+            seed=seed,
+            theme=theme,
+            post=post,
+        )
+        return Plan(recipe=recipe, apply_after=True, reason=reason)
 
     recipe, reason = pick_new(
         library,

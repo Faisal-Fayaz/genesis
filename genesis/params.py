@@ -15,6 +15,53 @@ Kind = Literal["int", "float", "bool", "enum", "color", "string"]
 
 
 @dataclass(frozen=True)
+class Requirement:
+    """A condition under which a parameter has any effect at all.
+
+    Some parameters are inert until another one is set a particular way: the
+    attractor's panning does nothing until `zoom` drops below 1.0, and `extent`
+    does nothing until `fit` is "fixed". A UI that lists these without saying so
+    presents controls that quietly do nothing, which is worse than not offering
+    them.
+
+    Declared rather than inferred because the generator knows the rule and the
+    interface does not, and because a rule nobody wrote down cannot be checked.
+    """
+
+    param: str
+    equals: Any = None
+    below: float | None = None
+    above: float | None = None
+
+    def satisfied_by(self, values: dict[str, Any]) -> bool:
+        """Whether `values` meets this requirement."""
+        actual = values.get(self.param)
+        if actual is None:
+            return False
+        if self.equals is not None and actual != self.equals:
+            return False
+        if self.below is not None:
+            try:
+                return float(actual) < self.below
+            except (TypeError, ValueError):
+                return False
+        if self.above is not None:
+            try:
+                return float(actual) > self.above
+            except (TypeError, ValueError):
+                return False
+        return True
+
+    def describe(self) -> str:
+        """A sentence for the interface to show next to a disabled control."""
+        if self.below is not None:
+            return f"needs {self.param} below {self.below:g}"
+        if self.above is not None:
+            return f"needs {self.param} above {self.above:g}"
+        return f"needs {self.param} set to {self.equals}"
+
+
+@dataclass(frozen=True)
 class ParamSpec:
     name: str
     kind: Kind
@@ -25,6 +72,7 @@ class ParamSpec:
     choices: tuple[str, ...] = ()
     label: str = ""
     help: str = ""
+    requires: tuple[Requirement, ...] = ()
 
     def __post_init__(self) -> None:
         if self.kind == "enum" and not self.choices:
@@ -105,7 +153,28 @@ class ParamSpec:
             payload["label"] = self.label
         if self.help:
             payload["help"] = self.help
+        if self.requires:
+            payload["requires"] = [
+                {
+                    "param": requirement.param,
+                    "equals": requirement.equals,
+                    "below": requirement.below,
+                    "above": requirement.above,
+                }
+                for requirement in self.requires
+            ]
         return payload
+
+    def is_available(self, values: dict[str, Any]) -> bool:
+        """Whether this parameter currently has any effect."""
+        return all(requirement.satisfied_by(values) for requirement in self.requires)
+
+    def unavailable_reason(self, values: dict[str, Any]) -> str | None:
+        """Why this parameter is inert, or None if it is live."""
+        unmet = [r for r in self.requires if not r.satisfied_by(values)]
+        if not unmet:
+            return None
+        return " and ".join(requirement.describe() for requirement in unmet)
 
 
 @dataclass(frozen=True)

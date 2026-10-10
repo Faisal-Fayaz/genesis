@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 
+from .color import linear_to_srgb, srgb_to_linear
 from .params import ParamSpec, build_schema
 from .rng import stream
 
@@ -127,7 +128,22 @@ def _luma(image: np.ndarray) -> np.ndarray:
 
 
 def apply(image: np.ndarray, seed: int, settings: dict[str, Any]) -> np.ndarray:
-    """Run the full post chain over a linear-light image."""
+    """Run the full post chain over a linear-light image.
+
+    `contrast` is applied to the sRGB-encoded image while `brightness` and
+    `lift` stay in linear light. The split is deliberate rather than tidy.
+
+    Contrast describes how a picture looks, and its whole purpose is a response
+    that feels even, which is what perceptual space gives. Applied in linear
+    light it pivots at 0.5 - a fairly bright grey - so on a dark wallpaper every
+    setting below 1.0 became an enormous black lift: the `tide` background moved
+    from 10/255 to 65/255 at contrast 0.9, and no contrast setting under 1.0 was
+    usable on a dark image at all.
+
+    Brightness and lift describe light, not appearance, so they stay where they
+    were: a gain and a black-point offset are linear operations, and moving them
+    would change every image that uses them for no gain.
+    """
     result = np.array(image, dtype=np.float64, copy=True)
     height, width = result.shape[:2]
 
@@ -136,8 +152,12 @@ def apply(image: np.ndarray, seed: int, settings: dict[str, Any]) -> np.ndarray:
     saturation = float(settings["saturation"])
     lift = float(settings["lift"])
 
-    if brightness != 1.0 or contrast != 1.0 or saturation != 1.0 or lift != 0.0:
-        result = (result - 0.5) * contrast + 0.5
+    if contrast != 1.0:
+        encoded = linear_to_srgb(result)
+        encoded = (encoded - 0.5) * contrast + 0.5
+        result = srgb_to_linear(np.clip(encoded, 0.0, 1.0))
+
+    if brightness != 1.0 or lift != 0.0 or saturation != 1.0:
         result = result * brightness + lift
         if saturation != 1.0:
             gray = _luma(result)[..., None]
