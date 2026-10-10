@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Genesis
+Comment=Deterministic procedural wallpapers, live and still
+Exec=@GENESIS_EXEC@ app
+Icon=genesis
+Terminal=false
+Categories=Graphics;GTK;
+StartupWMClass=org.genesis.wallpapers

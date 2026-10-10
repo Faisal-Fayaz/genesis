@@ -1,0 +1,49 @@
+# Flatpak manifest for Genesis (draft — not yet built in CI).
+#
+# Build locally with:
+#   flatpak-builder --user --install build-dir flatpak/org.genesis.wallpapers.yml
+#
+# Open questions before a Flathub submission:
+# - Wallpaper-apply under the sandbox. The daily timer and `genesis apply`
+#   write GNOME wallpaper keys via gsettings/dconf, which needs dconf access
+#   from inside the sandbox (finish-args below are a starting point, not yet
+#   verified end to end). The systemd user timer keeps running outside the
+#   sandbox regardless.
+# - Runtime version: 48 is chosen for wide availability; bump to the current
+#   stable GNOME runtime before submitting.
+# - Python wheels are fetched from PyPI at build time with the same pins as
+#   requirements.txt; Flathub builds allow network during build.
+
+app-id: org.genesis.wallpapers
+runtime: org.gnome.Platform
+runtime-version: "48"
+sdk: org.gnome.Sdk
+command: genesis
+
+finish-args:
+  - --share=ipc
+  - --socket=x11 # live mode is X11-only; the still app also runs here
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri # keep CPU rendering off the critical path where possible
+  - --filesystem=xdg-config/dconf # gsettings wallpaper keys (verify before submit)
+
+modules:
+  - name: python-deps
+    buildsystem: simple
+    build-commands:
+      - pip3 install --no-cache-dir --prefix=/app -r requirements.txt
+    sources:
+      - type: file
+        path: ../requirements.txt
+
+  - name: genesis
+    buildsystem: simple
+    build-commands:
+      - pip3 install --no-cache-dir --prefix=/app .
+      - install -Dm644 assets/org.genesis.wallpapers.metainfo.xml /app/share/metainfo/org.genesis.wallpapers.metainfo.xml
+      - install -Dm644 assets/genesis.svg /app/share/icons/hicolor/scalable/apps/org.genesis.wallpapers.svg
+      - install -Dm644 assets/genesis.desktop /app/share/applications/org.genesis.wallpapers.desktop
+    sources:
+      - type: dir
+        path: ..

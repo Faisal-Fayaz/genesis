@@ -4,12 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "genesis"
-version = "0.1.0"
+version = "0.2.0"
 description = "Deterministic procedural wallpaper engine driven by git-able recipes"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
 requires-python = ">=3.11"
 dependencies = [
-    "numpy==2.5.3",
-    "pillow==11.3.0",
+    # Floors are the versions golden digests were recorded against; ceilings
+    # are the next potentially breaking majors. requirements.txt pins the
+    # exact dev/golden environment on top of these.
+    "numpy>=2.5,<3",
+    "pillow>=11.3,<12",
 ]
 
 [project.scripts]

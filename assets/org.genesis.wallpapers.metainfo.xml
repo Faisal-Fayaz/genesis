@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppData metainfo for GNOME Software / Flathub (draft).
+     TODO before submission:
+     - fill in the homepage URL once the repository has a remote,
+     - add 2-4 screenshots under <screenshots> (Flathub requires them),
+     - keep <releases> in step with CHANGELOG.md and tags. -->
+<component type="desktop-application">
+  <id>org.genesis.wallpapers</id>
+  <metadata_license>FSFAP</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Genesis</name>
+  <summary>Deterministic procedural wallpapers, live and still</summary>
+  <description>
+    <p>
+      Genesis is a procedural wallpaper engine where every image is described
+      by a small JSON recipe. The same recipe always produces byte-identical
+      pixels, so a wallpaper is a diff you can read, share, and revert —
+      not a blob.
+    </p>
+    <p>
+      Render curated stills, keep the ones you love starred, get a fresh
+      wallpaper every morning from the daily timer, or animate a composition
+      behind your windows with the cursor-reactive live mode (X11).
+      Everything runs locally; there are no accounts and no network calls.
+    </p>
+  </description>
+  <launchable type="desktop-id">org.genesis.wallpapers.desktop</launchable>
+  <categories>
+    <category>Graphics</category>
+  </categories>
+  <content_rating type="oars-1.0" />
+  <releases>
+    <release version="0.1.0" date="2026-10-10">
+      <description>
+        <p>First tagged snapshot: deterministic stills, library, daily timer, and live mode.</p>
+      </description>
+    </release>
+  </releases>
+</component>

@@ -1,3 +1,8 @@
+# The exact dev and golden-test environment. pyproject.toml declares wider
+# floors for users (numpy>=2.5,<3, pillow>=11.3,<12); this file pins what the
+# golden hashes in tests/golden.json were recorded against, and
+# tests/test_environment.py enforces it here, not on user installs.
+#
 # Pinned because render digests depend on these versions: Pillow's resampling
 # and some encodings are not byte-stable across releases, and the golden hashes
 # in tests/golden.json were recorded against exactly these builds.
