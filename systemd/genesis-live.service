@@ -1,0 +1,26 @@
+[Unit]
+Description=Genesis live wallpaper
+PartOf=graphical-session.target
+After=graphical-session.target
+# A recipe that crashes on startup must not hot-loop forever: after three
+# rapid failures inside a minute the unit stays down until the next login.
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+# A long-lived cursor-reactive wallpaper. Left disabled by default: `install
+# --live` copies this unit but does not enable it, so nothing animates until
+# the user asks. Restart on failure only; a clean exit (SIGTERM from logout)
+# must not respawn.
+#
+# `--from applied` animates whatever `daily`/`apply` last put on the desktop,
+# so the service follows the user's wallpaper instead of an independent pick.
+
+[Service]
+Type=simple
+ExecStart=%h/projects/genesis/.venv/bin/python -m genesis.cli live --from applied
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+
+[Install]
+WantedBy=graphical-session.target
