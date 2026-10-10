@@ -415,7 +415,7 @@ def _first_digest(root: Path) -> str:
 
 class TestHelpText:
     @pytest.mark.parametrize(
-        "command", ["apply", "daily", "gallery", "library", "gen", "list", "describe"]
+        "command", ["app", "apply", "daily", "gallery", "library", "gen", "list", "describe", "live", "presets", "install", "uninstall", "doctor"]
     )
     def test_every_command_has_help(self, command) -> None:
         with pytest.raises(SystemExit) as excinfo:
@@ -426,7 +426,7 @@ class TestHelpText:
         with pytest.raises(SystemExit):
             cli.main(["--help"])
         out = capsys.readouterr().out
-        for command in ("apply", "daily", "gallery", "library"):
+        for command in ("app", "apply", "daily", "gallery", "library", "doctor", "uninstall"):
             assert command in out
 
 

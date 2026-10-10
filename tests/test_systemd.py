@@ -42,12 +42,22 @@ class TestInstall:
         for name in systemd_module.UNIT_NAMES:
             assert (tmp_path / name).exists()
 
-    def test_copied_contents_match(self, tmp_path) -> None:
+    def test_copied_contents_match_the_rendered_units(self, tmp_path) -> None:
+        """Installed units point at the resolved executable, not the checkout.
+
+        Only the ExecStart line may differ from the shipped file; everything
+        else must be byte-identical so installer edits stay reviewable.
+        """
         systemd_module.install(tmp_path)
+        executable = systemd_module.resolve_executable()
         for name in systemd_module.UNIT_NAMES:
-            assert (tmp_path / name).read_text() == (
-                systemd_module.unit_path(name)
-            ).read_text()
+            installed = (tmp_path / name).read_text()
+            if name.endswith(".service"):
+                assert installed == systemd_module.render_unit(name, executable)
+                assert f"ExecStart={executable}" in installed
+            else:
+                # The timer schedules; it invokes nothing, so it copies verbatim.
+                assert installed == systemd_module.unit_path(name).read_text()
 
     def test_creates_the_destination(self, tmp_path) -> None:
         target = tmp_path / "nested" / "user"
@@ -121,7 +131,7 @@ class TestInstallCommand:
         calls: list[list[str]] = []
         monkeypatch.setattr(cli, "systemd_available", lambda: True)
         monkeypatch.setattr(
-            systemd_module, "install", lambda destination=None: list(systemd_module.UNIT_NAMES)
+            systemd_module, "install", lambda destination=None, live=False, app=False: list(systemd_module.UNIT_NAMES)
         )
         monkeypatch.setattr(
             systemd_module.subprocess,
@@ -140,7 +150,7 @@ class TestInstallCommand:
     def test_reports_a_copy_failure(self, capsys, monkeypatch) -> None:
         monkeypatch.setattr(cli, "systemd_available", lambda: True)
 
-        def fail(destination=None):
+        def fail(destination=None, live=False, app=False):
             raise OSError("read-only filesystem")
 
         monkeypatch.setattr(systemd_module, "install", fail)
@@ -152,7 +162,7 @@ class TestInstallCommand:
     def test_points_at_the_cli_in_its_own_messages(self, capsys, monkeypatch) -> None:
         monkeypatch.setattr(cli, "systemd_available", lambda: True)
         monkeypatch.setattr(
-            systemd_module, "install", lambda destination=None: list(systemd_module.UNIT_NAMES)
+            systemd_module, "install", lambda destination=None, live=False, app=False: list(systemd_module.UNIT_NAMES)
         )
         monkeypatch.setattr(
             systemd_module.subprocess,
@@ -187,3 +197,69 @@ class TestNoDestructiveDefaults:
         # The timer's schedule is the only trigger; no unit may start it directly.
         service_text = systemd_module.unit_path(systemd_module.SERVICE_NAME).read_text()
         assert "genesis-daily.timer" not in service_text
+
+
+class TestExecutableResolution:
+    def test_prefers_genesis_on_path(self, monkeypatch, tmp_path) -> None:
+        exe = tmp_path / "bin" / "genesis"
+        exe.parent.mkdir()
+        exe.write_text("#!/bin/sh\n")
+        monkeypatch.setattr(systemd_module.shutil, "which", lambda name: str(exe))
+        assert systemd_module.resolve_executable() == str(exe)
+
+    def test_falls_back_to_the_current_interpreter(self, monkeypatch) -> None:
+        monkeypatch.setattr(systemd_module.shutil, "which", lambda name: None)
+        resolved = systemd_module.resolve_executable()
+        assert resolved.endswith(" -m genesis.cli")
+        assert "genesis.cli" in resolved
+
+    def test_render_unit_rewrites_only_exec_start(self) -> None:
+        source = systemd_module.unit_path(systemd_module.SERVICE_NAME).read_text()
+        rendered = systemd_module.render_unit(
+            systemd_module.SERVICE_NAME, "/home/u/.local/bin/genesis"
+        )
+        assert "ExecStart=/home/u/.local/bin/genesis daily" in rendered
+        source_lines = [line for line in source.splitlines() if not line.startswith("ExecStart=")]
+        rendered_lines = [line for line in rendered.splitlines() if not line.startswith("ExecStart=")]
+        assert source_lines == rendered_lines
+
+    def test_render_unit_rejects_units_without_a_genesis_command(self, tmp_path) -> None:
+        with pytest.raises(ValueError, match="no ExecStart"):
+            systemd_module.render_unit("genesis-daily.timer", "/bin/genesis")
+
+
+class TestAppInstallation:
+    def test_install_app_writes_desktop_entry_and_icon(self, tmp_path) -> None:
+        apps = tmp_path / "applications"
+        icons = tmp_path / "icons"
+        names = systemd_module.install_app_files(apps, icons, "/bin/genesis")
+        assert names == ["genesis.desktop", "genesis.svg"]
+        entry = (apps / "genesis.desktop").read_text()
+        assert "Exec=/bin/genesis app" in entry
+        assert "@GENESIS_EXEC@" not in entry
+        assert "StartupWMClass=org.genesis.wallpapers" in entry
+        assert (icons / "genesis.svg").exists()
+
+    def test_install_app_flag_adds_desktop_files(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.setattr(
+            systemd_module, "install_app_files",
+            lambda *a, **k: ["genesis.desktop", "genesis.svg"],
+        )
+        copied = systemd_module.install(tmp_path, app=True)
+        assert "genesis.desktop" in copied
+
+    def test_install_without_app_flag_skips_desktop_files(self, tmp_path, monkeypatch) -> None:
+        calls: list = []
+        monkeypatch.setattr(
+            systemd_module, "install_app_files",
+            lambda *a, **k: calls.append(True) or [],
+        )
+        systemd_module.install(tmp_path)
+        assert calls == []
+
+    def test_install_print_lists_app_steps(self, capsys) -> None:
+        code = cli.main(["install", "--print", "--app"])
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "genesis.desktop" in out
+        assert "genesis.svg" in out

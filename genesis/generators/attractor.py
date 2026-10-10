@@ -14,7 +14,7 @@ import numpy as np
 
 from ..canon import stable_hash
 from ..color import Palette
-from ..params import ParamSpec, build_schema
+from ..params import ParamSpec, Requirement, build_schema
 from ..registry import register
 from ..rng import stream
 from ._common import downsample, scatter_add
@@ -121,6 +121,7 @@ SCHEMA = build_schema(
             step=0.02,
             label="Pan x",
             help="Shifts the cropped window horizontally, as a fraction of its width",
+            requires=(Requirement(param="zoom", below=1.0),),
         ),
         ParamSpec(
             "pan_y",
@@ -130,6 +131,8 @@ SCHEMA = build_schema(
             maximum=1.0,
             step=0.02,
             label="Pan y",
+            help="Shifts the cropped window vertically, as a fraction of its height",
+            requires=(Requirement(param="zoom", below=1.0),),
         ),
         ParamSpec(
             "extent",
@@ -140,6 +143,7 @@ SCHEMA = build_schema(
             step=0.05,
             label="Extent",
             help="Half-width of the view window when framing is fixed",
+            requires=(Requirement(param="fit", equals="fixed"),),
         ),
         ParamSpec(
             "hue_bias",

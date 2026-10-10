@@ -89,6 +89,26 @@ CASES: dict[str, dict] = {
         "seed": 3,
         "palette_name": "tide",
     },
+    "splash_default": {
+        "generator": "splash",
+        "params": {"blobs": 60, "spread": 0.12, "supersample": 1},
+        "seed": 3,
+        "palette_name": "neon",
+    },
+    # Zero turbulence and fray pins the smooth-blob path; if the fray texture
+    # stops affecting output, only this case moves.
+    "splash_smooth": {
+        "generator": "splash",
+        "params": {
+            "blobs": 60,
+            "spread": 0.12,
+            "turbulence": 0.0,
+            "fray": 0.0,
+            "supersample": 1,
+        },
+        "seed": 3,
+        "palette_name": "neon",
+    },
 }
 
 

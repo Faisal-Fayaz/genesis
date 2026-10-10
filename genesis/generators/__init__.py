@@ -7,6 +7,6 @@ reflect whatever actually exists rather than a hardcoded list.
 
 from __future__ import annotations
 
-from . import attractor, flowfield
+from . import attractor, flowfield, splash
 
-__all__ = ["attractor", "flowfield"]
+__all__ = ["attractor", "flowfield", "splash"]

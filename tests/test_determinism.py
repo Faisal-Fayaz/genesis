@@ -17,6 +17,7 @@ from genesis.rng import stream
 TINY_PARAMS: dict[str, dict[str, int]] = {
     "attractor": {"points": 20000, "warmup": 50, "supersample": 1},
     "flowfield": {"trails": 1000, "steps": 30, "supersample": 1},
+    "splash": {"blobs": 8, "detail": 1, "supersample": 1},
 }
 
 def tiny(generator: str, **overrides: object) -> Recipe:

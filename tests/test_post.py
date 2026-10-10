@@ -1,8 +1,11 @@
 """Post-processing.
 
-Post runs in linear light on the generator's output, and converts to sRGB once
-at the end. Getting that wrong is invisible in the numbers and obvious in the
-picture: a grade pivoted on sRGB values crushes a dark palette to black.
+`contrast` runs on the sRGB-encoded image because it describes how a picture
+looks, while the physically motivated operations stay in linear light. Getting
+the split wrong is invisible in the numbers and obvious in the picture: a grade
+pivoted on linear values turns a dark wallpaper's background into mid-grey,
+while applying light-like gain where appearance was intended makes the response
+uneven.
 """
 
 from __future__ import annotations
@@ -11,6 +14,7 @@ import numpy as np
 import pytest
 
 from genesis import post
+from genesis.color import linear_to_srgb, srgb_to_linear
 
 
 def image(seed: int = 0, height: int = 48, width: int = 64) -> np.ndarray:
@@ -122,6 +126,66 @@ class TestGrade:
         source = np.zeros((4, 4, 3))
         result = post.apply(source, 1, post.resolve({"lift": 0.1}))
         assert result.mean() == pytest.approx(0.1, rel=0.01)
+
+
+class TestContrastKeepsDarkImagesDark:
+    """Contrast must preserve a dark wallpaper background at usable settings.
+
+    Contrast used to pivot at 0.5 in *linear* light. A wallpaper background sits
+    near zero in linear light, so every setting below 1.0 pushed it sharply up
+    and turned a dark image into a mid-grey one: the `tide` background moved from
+    10/255 to 65/255 at contrast 0.9. Contrast now pivots at 0.5 in encoded
+    sRGB space, the perceptual midpoint.
+
+    This test does not promise that the extreme minimum leaves black untouched.
+    That is impossible for a pivoting contrast curve: moving the rest of the
+    image toward the midpoint necessarily moves values just above black too.
+    The regression is therefore about the settings a person would actually use.
+    """
+
+    # The `tide` palette's darkest stop, in linear light.
+    BACKGROUND = 0.003
+
+    def test_reducing_contrast_leaves_a_near_black_background_near_black(self) -> None:
+        source = np.full((8, 8, 3), self.BACKGROUND)
+        result = post.apply(source, 1, post.resolve({"contrast": 0.9}))
+        as_srgb = linear_to_srgb(result).mean() * 255.0
+        assert as_srgb < 30.0, f"background lifted to {as_srgb:.0f}/255"
+
+    def test_usable_lower_contrast_lifts_background_only_slightly(self) -> None:
+        source = np.full((8, 8, 3), self.BACKGROUND)
+        result = post.apply(source, 1, post.resolve({"contrast": 0.8}))
+        as_srgb = linear_to_srgb(result).mean() * 255.0
+        assert as_srgb < 45.0, f"background lifted to {as_srgb:.0f}/255"
+
+    def test_contrast_is_monotonic(self) -> None:
+        """At a fixed dark value, more contrast means a darker result."""
+        source = np.full((8, 8, 3), self.BACKGROUND)
+        readings = [
+            float(post.apply(source, 1, post.resolve({"contrast": c})).mean())
+            for c in (0.7, 0.9, 1.0, 1.5, 2.0)
+        ]
+        assert readings == sorted(readings, reverse=True)
+
+    def test_contrast_compresses_dark_values_toward_the_pivot(self) -> None:
+        """Pin the old-name behavior for the extreme minimum.
+
+        At contrast 0.4, this background moves toward encoded mid-grey rather
+        than remaining pure black. The assertion documents the tradeoff instead
+        of pretending a pivoting contrast preserves black at every setting. The
+        improvement over the old linear pivot remains large: about 80/255 here
+        versus about 149/255 before.
+        """
+        source = np.full((8, 8, 3), self.BACKGROUND)
+        result = post.apply(source, 1, post.resolve({"contrast": 0.4}))
+        assert float(linear_to_srgb(result).mean()) == pytest.approx(0.3155, abs=0.005)
+
+    def test_mid_grey_is_the_pivot(self) -> None:
+        """Encoded 0.5 stays put, as a perceptual midpoint should."""
+        source = np.full((8, 8, 3), srgb_to_linear(0.5))
+        for contrast in (0.5, 1.5, 2.0):
+            result = post.apply(source, 1, post.resolve({"contrast": contrast}))
+            assert float(linear_to_srgb(result).mean()) == pytest.approx(0.5, abs=0.005)
 
 
 class TestVignette:

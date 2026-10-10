@@ -17,16 +17,21 @@ import numpy as np
 
 from . import post as post_module
 from . import registry
-from .canon import canonical_json, derive_seed
+from .canon import canonical_json, derive_seed, stable_hash
 from .color import Palette
 from .rng import random_seed, stream, uniform
 
 RECIPE_VERSION = 1
+# Ramp order matters: stop zero is the background the renderer fills the canvas
+# with, so every palette has to run dark to light. `ink` originally ran the
+# other way and produced a near-white wallpaper, which left desktop icons
+# sitting on a bright field. It is ordered like the others now, and a test
+# asserts the property so a new palette cannot repeat the mistake.
 PRESETS: dict[str, list[str]] = {
     "ember": ["#0d0a12", "#2b1b3d", "#7a2f5c", "#e0603f", "#ffd08a"],
     "tide": ["#04121f", "#0b3a53", "#1d7a8c", "#63c7b3", "#e9f6ef"],
     "moss": ["#0b1410", "#1c3324", "#3f6b45", "#8fbf6f", "#eaf0d8"],
-    "ink": ["#f2efe9", "#b8c0cc", "#5b6b8c", "#28324d", "#0d1220"],
+    "ink": ["#0d1220", "#28324d", "#5b6b8c", "#b8c0cc", "#f2efe9"],
     "neon": ["#08030f", "#2d0a4a", "#7b1fa2", "#e91e8c", "#ffd166"],
     "slate": ["#101215", "#2b3138", "#5c6773", "#9aa7b4", "#e6ebef"],
     "solar": ["#1a0f05", "#4d2a0d", "#a85c15", "#f0a818", "#fff1c9"],
@@ -163,6 +168,18 @@ class Recipe:
         seed_tag = format(self.effective_seed, "08x")
         return f"{self.generator}-{self.width}x{self.height}-{seed_tag}"
 
+    def composition_key(self) -> str:
+        """A size-independent identity for a composition.
+
+        Same picture idea at any render size: generator, palette, theme, seed
+        material, and parameters — but not dimensions. Live preference
+        overrides are keyed by this so they survive display changes and the
+        preview/full-size split.
+        """
+        seed_tag = format(self.effective_seed, "08x")
+        params_tag = format(stable_hash(self.params) & ((1 << 48) - 1), "012x")
+        return f"{self.generator}-{self.palette_name}-{self.theme}-{seed_tag}-{params_tag}"
+
 
 def random_recipe(
     generator_name: str | None = None,
@@ -188,7 +205,9 @@ def random_recipe(
         elif spec.kind == "bool":
             params[spec.name] = bool(seed_source.random() < 0.5)
         elif spec.kind in ("int", "float"):
-            params[spec.name] = _sample_number(spec, seed_source)
+            params[spec.name] = (
+                spec.default if spec.name in DERIVED else _sample_number(spec, seed_source)
+            )
         elif spec.kind == "color":
             params[spec.name] = _sample_color(spec, seed_source)
     palette_names = sorted(PRESETS)
@@ -232,6 +251,11 @@ COSTLY = {
     "detail": 0.5,
 }
 
+# Parameters left at their default rather than drawn, because a random value is
+# worse than no variation at all. Each one is either computed from other
+# parameters or expresses a tradeoff where any fixed choice is arbitrary.
+DERIVED = {"substeps"}
+
 # Parameters that decide how bright or saturated the result looks. Their full
 # ranges are there so a person can push past the defaults deliberately, but a
 # random draw across the range produces a blown-out or muddy image rather than a
@@ -254,10 +278,18 @@ MOOD = {
 # somewhere good: a flowfield at scale 13.8 with 7 octaves produced coarse
 # mottled noise, where the tuned scale 1.5 gives layered silk. Held near the
 # default, so "random" varies a composition rather than replacing it.
+#
+# `scale` and `detail` are held tighter than the rest because together they set
+# how fast the field's angle changes per pixel, and that rate is what the
+# generator's step guard is measured against. At these caps a draw reaches
+# scale 3.0 and detail 5.7, which stays inside the guard's limit and inside the
+# budget of one field sample. Looser caps still render correctly now, because
+# the guard clamps the step, but they do so by shortening every trail, which
+# changes the composition the draw was asking for rather than just its detail.
 STRUCTURE = {
-    "scale": 0.25,
+    "scale": 0.18,
     "turns": 0.3,
-    "detail": 0.4,
+    "detail": 0.25,
     "step_size": 0.3,
     "steps": 0.25,
 }

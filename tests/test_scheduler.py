@@ -190,9 +190,67 @@ class TestPickNew:
 
 class TestChoose:
     def test_empty_library_generates(self, lib) -> None:
-        plan = scheduler_module.choose(lib, day=DAY)
+        plan = scheduler_module.choose(lib, day=DAY, source="random")
         assert plan.existing is None
         assert plan.reason.startswith("new:")
+
+    def test_curated_is_the_default_source(self, lib) -> None:
+        """Curated is the floor for quality, so it should be what you get
+        without asking. The random path is still reachable, just not the default.
+        """
+        plan = scheduler_module.choose(lib, day=DAY)
+        assert plan.reason.startswith("curated ")
+        from genesis import presets as curated_presets
+
+        assert plan.recipe.canonical() in {
+            preset.recipe().canonical() for preset in curated_presets.CURATED
+        }
+
+    def test_mood_narrows_the_curated_pool(self, lib) -> None:
+        from genesis import presets as curated_presets
+
+        allowed = {
+            preset.recipe().canonical() for preset in curated_presets.for_mood("calm")
+        }
+        for offset in range(8):
+            plan = scheduler_module.choose(lib, day=DAY, mood="calm", seed=offset)
+            assert plan.recipe.canonical() in allowed
+
+    def test_the_same_day_picks_the_same_preset(self, lib) -> None:
+        first = scheduler_module.choose(lib, day=DAY)
+        second = scheduler_module.choose(lib, day=DAY)
+        assert first.recipe.canonical() == second.recipe.canonical()
+
+    def test_curated_rotates_through_the_whole_set(self, lib) -> None:
+        """Over a month every preset should appear, and none should dominate.
+
+        The library is not updated between picks here on purpose: what is being
+        checked is that the seeded draw spreads across the set, which is what
+        keeps a month of daily wallpapers from looking like one image repeated.
+        """
+        seen = set()
+        for offset in range(30):
+            plan = scheduler_module.choose(lib, day=DAY, seed=offset)
+            seen.add(plan.recipe.canonical())
+        from genesis import presets as curated_presets
+
+        assert len(seen) >= 12, f"only {len(seen)} distinct presets in 30 picks"
+        assert len(seen) <= len(curated_presets.CURATED)
+
+    def test_curated_skips_what_the_library_already_has(self, lib) -> None:
+        """Once a preset is rendered it is deprioritised, so the set rotates."""
+        from genesis import presets as curated_presets
+
+        for preset in curated_presets.CURATED[:8]:
+            recipe = preset.recipe(160, 90)
+            lib.add(recipe, f"{abs(hash(preset.name)):016x}", lib.root / "images" / "x.png")
+        plan = scheduler_module.choose(lib, day=DAY, seed=0)
+        name = plan.reason.split()[1]
+        assert name not in {p.name for p in curated_presets.CURATED[:8]}
+
+    def test_unknown_mood_is_rejected(self, lib) -> None:
+        with pytest.raises(ValueError):
+            scheduler_module.choose(lib, day=DAY, mood="nonsense")
 
     def test_reuse_mode_uses_what_is_there(self, lib) -> None:
         entry = add(lib)
@@ -234,7 +292,7 @@ class TestChoose:
 
     def test_post_options_are_passed_through(self, lib) -> None:
         plan = scheduler_module.choose(lib, day=DAY, post={"grain": 0.05})
-        assert plan.recipe.post == {"grain": 0.05}
+        assert plan.recipe.post.get("grain") == 0.05
 
     def test_the_recipe_it_returns_renders(self, lib) -> None:
         plan = scheduler_module.choose(lib, day=DAY, width=160, height=90)

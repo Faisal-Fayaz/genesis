@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+import numpy as np
 import pytest
 
 from genesis import registry
@@ -25,6 +26,19 @@ def base(**overrides) -> Recipe:
 def test_round_trip_through_json() -> None:
     recipe = base()
     assert Recipe.from_json(recipe.to_json()).to_dict() == recipe.to_dict()
+
+
+def test_composition_key_ignores_size() -> None:
+    small = base(width=64, height=36)
+    big = base(width=1920, height=1080)
+    assert small.slug() != big.slug()
+    assert small.composition_key() == big.composition_key()
+
+
+def test_composition_key_sees_palette_and_params() -> None:
+    assert base().composition_key() != base(palette_name="ember").composition_key()
+    assert base().composition_key() != base(params={"points": 60000}).composition_key()
+    assert base().composition_key() != base(seed=6).composition_key()
 
 
 def test_round_trip_through_file(tmp_path) -> None:
@@ -125,3 +139,31 @@ def test_all_presets_are_valid_hex() -> None:
         for color in colors:
             assert len(color) == 7 and color.startswith("#")
             int(color[1:], 16)
+
+
+def test_presets_start_dark_enough_for_desktop_icons() -> None:
+    """Stop zero is the background, so it has to be dark.
+
+    A palette ordered light-to-dark renders a wallpaper with a near-white
+    background and leaves desktop icons sitting on a bright field, which is
+    unreadable. `ink` was originally ordered that way and produced exactly that,
+    so the property is asserted rather than left to whoever adds the next
+    palette to notice.
+    """
+    from genesis.color import Palette, linear_to_srgb
+
+    for name, colors in PRESETS.items():
+        background = linear_to_srgb(Palette(colors, name).to_linear(0.0)) * 255.0
+        luminance = float(background @ np.array([0.2126, 0.7152, 0.0722]))
+        assert luminance < 70.0, f"{name} background is too light: {luminance:.0f}/255"
+
+
+def test_presets_run_dark_to_light() -> None:
+    """Each ramp should brighten, or trails fade out instead of standing out."""
+    from genesis.color import Palette, linear_to_oklab
+
+    for name, colors in PRESETS.items():
+        palette = Palette(colors, name)
+        dark = linear_to_oklab(palette.to_linear(0.0))
+        light = linear_to_oklab(palette.to_linear(1.0))
+        assert float(light[0]) > float(dark[0]), name

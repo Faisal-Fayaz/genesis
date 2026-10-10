@@ -198,6 +198,15 @@ def fits_display(image_size: tuple[int, int]) -> bool:
     return image_size[0] >= size[0] and image_size[1] >= size[1]
 
 
+def display_size() -> tuple[int, int] | None:
+    """The primary display's resolution, or None if it cannot be determined.
+
+    Public wrapper over the probing logic: the live engine sizes its output
+    to the real display rather than assuming full HD.
+    """
+    return _display_size()
+
+
 def _display_size() -> tuple[int, int] | None:
     """The primary display's resolution, or None if it cannot be determined."""
     for probe in (_display_size_xrandr, _display_size_gnome):

@@ -3,9 +3,10 @@
 Rendering verbs: `gen` renders a recipe, `gen random` invents one, `list` shows
 what exists, and `describe` shows how a recipe resolves.
 
-Walls of the app: `apply` sets the desktop wallpaper, `daily` renders or reuses
-one and applies it, `gallery` serves the browser interface, and `library`
-manages what has been rendered.
+Walls of the app: `app` opens the native interface, `apply` sets the desktop
+wallpaper, `daily` renders or reuses one and applies it, `presets` lists the
+hand-checked compositions, `gallery` remains as a browser fallback, and
+`library` manages what has been rendered.
 
 Overrides are layered onto a loaded recipe and the result is revalidated, so an
 override that would produce an invalid render fails immediately with a useful
@@ -189,6 +190,17 @@ def build_parser() -> argparse.ArgumentParser:
     daily.add_argument("--seed", type=int, help="pin the day's draw")
     daily.add_argument("--theme", choices=("dark", "light"), default="dark")
     daily.add_argument(
+        "--source",
+        choices=("curated", "random"),
+        default="curated",
+        help="curated picks from the hand-checked presets; random draws new parameters",
+    )
+    daily.add_argument(
+        "--mood",
+        choices=("calm", "rich", "soft"),
+        help="restrict curated picks to one mood",
+    )
+    daily.add_argument(
         "--dry-run",
         action="store_true",
         help="show the ranked candidates and exit without rendering",
@@ -208,7 +220,92 @@ def build_parser() -> argparse.ArgumentParser:
     )
     daily.add_argument("--json", action="store_true")
 
-    gallery = sub.add_parser("gallery", help="serve the local gallery")
+    listing = sub.add_parser("presets", help="list the curated wallpaper presets")
+    listing.add_argument(
+        "--mood", choices=("calm", "rich", "soft"), help="only one mood"
+    )
+    listing.add_argument("--json", action="store_true")
+
+    native = sub.add_parser("app", help="open the native desktop interface")
+    native.add_argument("--root", type=Path, help="override the library location")
+    native.add_argument("--config", type=Path, help="override the interface settings file")
+
+    live = sub.add_parser("live", help="run a cursor-reactive live wallpaper (X11 only)")
+    live.add_argument("--preset", help="curated preset to animate")
+    live.add_argument("--mood", choices=("calm", "rich", "soft"), help="pick a curated preset by mood")
+    live.add_argument("--recipe", type=Path, help="recipe file to animate")
+    live.add_argument(
+        "--from", dest="from_entry", metavar="DIGEST|SLUG|latest|applied",
+        help="animate a library piece: digest, slug, 'latest', or 'applied' "
+        "(the wallpaper currently on the desktop)",
+    )
+    live.add_argument("--seed", type=int, help="pin the live field seed")
+    live.add_argument(
+        "--mode", choices=("repel", "attract", "off"), default="repel",
+        help="how the cursor pushes fluid around: repel, attract, or off",
+    )
+    live.add_argument(
+        "--resolution", default="auto",
+        help="auto (the display), 1080p, 720p, or WIDTHxHEIGHT (default: auto)",
+    )
+    live.add_argument("--fps", type=int, default=60, help="target frame rate")
+    live.add_argument(
+        "--stir-strength", type=float, default=None,
+        help="how hard the cursor stirs the fluid (default: 5.0)",
+    )
+    live.add_argument(
+        "--relax", type=float, default=None,
+        help="per-frame pull back toward the still, 0..0.1 (default: 0.004;"
+        " sets both active and idle unless --relax-idle is given)",
+    )
+    live.add_argument(
+        "--relax-idle", type=float, default=None,
+        help="pull while untouched, 0..0.1 (default: follows --relax, else 0.02)",
+    )
+    live.add_argument(
+        "--idle", choices=("pause", "ambient", "still"), default="pause",
+        help="what to do when the pointer is idle",
+    )
+    live.add_argument(
+        "--fullscreen", choices=("slow", "pause", "off"), default="slow",
+        help="what to do when a fullscreen window has focus (default: slow)",
+    )
+    live.add_argument(
+        "--pause-on-lock", action=argparse.BooleanOptionalAction, default=True,
+        help="freeze while the screen is locked (default: on)",
+    )
+    live.add_argument(
+        "--battery-cap", action=argparse.BooleanOptionalAction, default=True,
+        help="cap the frame rate at 30 on battery (default: on)",
+    )
+    live.add_argument(
+        "--cursor-glow", type=float, default=None,
+        help="brightness lift near the pointer, 0..0.5 (default: 0.1)",
+    )
+    live.add_argument(
+        "--ambient-speed", type=float, default=None,
+        help="ambient drift in sim pixels per frame at 60 fps (default: 1.5)",
+    )
+    live.add_argument(
+        "--sharpen", type=float, default=None,
+        help="unsharp amount countering upscale softness, 0..1 (default: 0, off)",
+    )
+    live.add_argument(
+        "--motion", choices=("calm", "lively"), default=None,
+        help="a named motion feel; explicit flags override its pieces",
+    )
+    live.add_argument("--stats", action="store_true", help="print frame statistics")
+    live.add_argument("--dry-run", action="store_true", help="show the session plan without opening a window")
+    live.add_argument("--json", action="store_true", help="print the session plan as JSON")
+    live.add_argument("--root", type=Path, help="override the library location")
+    live.add_argument(
+        "--no-still", action="store_true",
+        help="skip the still base layer and animate from a flat background",
+    )
+
+    gallery = sub.add_parser(
+        "gallery", help="serve the browser gallery (fallback interface)"
+    )
     gallery.add_argument("--host", default="127.0.0.1")
     gallery.add_argument("--port", type=int, default=8765)
     gallery.add_argument("--root", type=Path, help="override the library location")
@@ -225,8 +322,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="enable the timer, which is the default when systemd is available",
     )
     install.add_argument(
+        "--live",
+        action="store_true",
+        help="also install the live wallpaper service (left disabled)",
+    )
+    install.add_argument(
+        "--app",
+        action="store_true",
+        help="also install the desktop entry and icon",
+    )
+    install.add_argument(
         "--print", dest="print_only", action="store_true", help="print the commands"
     )
+
+    uninstall = sub.add_parser(
+        "uninstall", help="disable the timer and remove installed units and app files"
+    )
+    uninstall.add_argument(
+        "--print", dest="print_only", action="store_true", help="print the commands"
+    )
+
+    doctor = sub.add_parser(
+        "doctor", help="check the setup and report what needs attention"
+    )
+    doctor.add_argument("--json", action="store_true", help="print the report as JSON")
 
     lib = sub.add_parser("library", help="list or manage rendered pieces")
     lib.add_argument(
@@ -413,6 +532,8 @@ def cmd_daily(args: argparse.Namespace) -> int:
                 seed=args.seed,
                 theme=args.theme,
                 post=post,
+                mood=args.mood,
+                source=args.source,
             )
         except ValueError as exc:
             return _error(_clean(exc))
@@ -457,6 +578,57 @@ def cmd_daily(args: argparse.Namespace) -> int:
         return 0
     finally:
         library.close()
+
+
+def cmd_presets(args: argparse.Namespace) -> int:
+    from . import presets as presets_module
+
+    pool = (
+        presets_module.for_mood(args.mood)
+        if args.mood
+        else list(presets_module.CURATED)
+    )
+    if args.json:
+        print(
+            json.dumps(
+                [
+                    {
+                        "name": preset.name,
+                        "mood": preset.mood,
+                        "palette": preset.palette,
+                        "seed": preset.seed,
+                        "note": preset.note,
+                        "params": preset.params,
+                        "post": preset.post or {},
+                    }
+                    for preset in pool
+                ],
+                indent=2,
+            )
+        )
+        return 0
+
+    for mood in presets_module.MOODS:
+        group = [preset for preset in pool if preset.mood == mood]
+        if not group:
+            continue
+        print(f"{mood}:")
+        for preset in group:
+            detail = f"  {preset.name:14s} {preset.palette:6s}"
+            if preset.note:
+                detail += f"  {preset.note}"
+            print(detail)
+        print()
+    return 0
+
+
+def cmd_app(args: argparse.Namespace) -> int:
+    from . import app as app_module
+
+    try:
+        return app_module.run_app(root=args.root, config_path=args.config)
+    except (OSError, ValueError, KeyError, ImportError) as exc:
+        return _error(_clean(exc))
 
 
 def cmd_gallery(args: argparse.Namespace) -> int:
@@ -514,7 +686,7 @@ def cmd_install(args: argparse.Namespace) -> int:
     from . import systemd as systemd_module
 
     if args.print_only:
-        for line in systemd_module.install_commands():
+        for line in systemd_module.install_commands(live=args.live, app=args.app):
             print(line)
         return 0
 
@@ -525,7 +697,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         )
 
     try:
-        copied = systemd_module.install()
+        copied = systemd_module.install(live=args.live, app=args.app)
     except OSError as exc:
         return _error(str(exc))
 
@@ -540,11 +712,374 @@ def cmd_install(args: argparse.Namespace) -> int:
     print()
     print("the timer is enabled; check it with:")
     print(f"  systemctl --user list-timers {systemd_module.TIMER_STEM}.timer")
+    if args.live:
+        print()
+        print("the live service is installed but left disabled; enable it with:")
+        print(f"  systemctl --user enable --now {systemd_module.LIVE_SERVICE_NAME}")
     print()
     print("run today's wallpaper now with:")
     print("  genesis daily --dry-run    # see the ranked candidates")
     print("  genesis daily              # render and apply")
     return 0
+
+
+def cmd_uninstall(args: argparse.Namespace) -> int:
+    """Disable the timer and remove installed units and app files."""
+    from . import systemd as systemd_module
+
+    if args.print_only:
+        for line in systemd_module.uninstall_commands():
+            print(line)
+        return 0
+
+    removed = systemd_module.uninstall()
+    if not removed:
+        print("nothing genesis-owned to remove")
+        return 0
+    for name in removed:
+        print(f"removed {name}")
+    print("the timer is disabled; wallpapers, library, and settings are untouched")
+    return 0
+
+
+def _pinned_versions() -> dict[str, str]:
+    """The exact pins from requirements.txt (the dev/golden lockfile)."""
+    from pathlib import Path as _Path
+
+    pins: dict[str, str] = {}
+    req = _Path(__file__).resolve().parent.parent / "requirements.txt"
+    try:
+        text = req.read_text()
+    except OSError:
+        return pins
+    for line in text.splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "==" in line:
+            name, _, version = line.partition("==")
+            pins[name.strip().lower()] = version.strip()
+    return pins
+
+
+def collect_doctor_status() -> list[dict[str, str]]:
+    """One entry per check: name, level (ok/warn/fail/info), and detail.
+
+    Kept separate from printing so tests can assert the report without
+    parsing terminal output. Every probe fails open into warn/info, never
+    into fail, except a too-old Python or a missing numpy/pillow: without
+    those nothing renders at all.
+    """
+    import os
+
+    from . import wallpaper as wallpaper_module
+
+    report: list[dict[str, str]] = []
+
+    def add(name: str, level: str, detail: str) -> None:
+        report.append({"check": name, "level": level, "detail": detail})
+
+    if sys.version_info >= (3, 11):  # noqa: UP036 - intentional runtime gate
+        add("python", "ok", ".".join(map(str, sys.version_info[:3])))
+    else:
+        add(
+            "python",
+            "fail",
+            f"{sys.version_info.major}.{sys.version_info.minor} "
+            "(genesis needs >= 3.11)",
+        )
+    add("genesis", "info", f"version {__version__}")
+
+    pins = _pinned_versions()
+    for package, module in (("numpy", "numpy"), ("pillow", "PIL")):
+        try:
+            imported = __import__(module)
+            version = getattr(imported, "__version__", "unknown")
+        except ImportError:
+            add(package, "fail", f"{package} is not installed")
+            continue
+        pin = pins.get(package)
+        if pin is not None and version != pin:
+            add(
+                package,
+                "warn",
+                f"{version} installed, {pin} pinned "
+                "(golden digests are tied to the pin)",
+            )
+        else:
+            add(package, "ok", version)
+
+    from .library import default_root
+
+    root = default_root()
+    database = root / "library.db"
+    if not database.exists():
+        add("library", "info", f"empty (no catalog at {root})")
+    else:
+        import sqlite3
+
+        try:
+            connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+            try:
+                count = connection.execute(
+                    "SELECT COUNT(*) FROM pieces"
+                ).fetchone()[0]
+            finally:
+                connection.close()
+        except sqlite3.Error as exc:
+            add("library", "warn", f"catalog unreadable: {exc}")
+        else:
+            add("library", "ok", f"{count} piece(s) in {root}")
+
+    if wallpaper_module.has_session():
+        add("session", "ok", "a graphical session is reachable")
+    else:
+        display = "set" if os.environ.get("DISPLAY") else "unset"
+        wayland = "set" if os.environ.get("WAYLAND_DISPLAY") else "unset"
+        add(
+            "session",
+            "warn",
+            f"no graphical session (DISPLAY {display}, WAYLAND_DISPLAY "
+            f"{wayland}); timers will skip wallpaper changes",
+        )
+    size = wallpaper_module.display_size()
+    add(
+        "display",
+        "info",
+        f"{size[0]}x{size[1]}" if size is not None else "resolution unknown",
+    )
+
+    if shutil.which("systemctl") is None:
+        add("systemd", "warn", "no systemctl; use 'genesis install --print'")
+    elif not systemd_available():
+        add("systemd", "warn", "no systemd user manager is running")
+    else:
+        from . import systemd as systemd_module
+
+        parts = []
+        parts.append(
+            "timer installed" if systemd_module.is_installed() else "timer not installed"
+        )
+        try:
+            enabled, _detail = systemd_module.timer_status()
+            parts.append("enabled" if enabled else "disabled")
+        except OSError:
+            parts.append("state unknown")
+        try:
+            parts.append(f"next run {systemd_module.next_run()}")
+        except OSError:
+            pass
+        add("systemd", "ok", "; ".join(parts))
+
+    from . import systemd as systemd_module
+
+    missing = [
+        name
+        for path, name in (
+            (systemd_module.APPLICATIONS_DIR / systemd_module.DESKTOP_NAME, "launcher"),
+            (systemd_module.ICONS_DIR / systemd_module.ICON_NAME, "icon"),
+        )
+        if not path.exists()
+    ]
+    if missing:
+        add("app files", "info", f"not installed ({', '.join(missing)} missing)")
+    else:
+        add("app files", "ok", "launcher and icon installed")
+
+    try:
+        import gi  # noqa: F401
+
+        add("gtk", "ok", "GTK bindings present (`genesis app` available)")
+    except ImportError:
+        add("gtk", "warn", "no GTK bindings (`genesis app` unavailable)")
+    import ctypes.util
+
+    if ctypes.util.find_library("X11") is None:
+        add("x11", "warn", "no X11 client libraries (`genesis live` unavailable)")
+    else:
+        add("x11", "ok", "X11 client libraries present")
+    return report
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Check the setup and report what needs attention."""
+    report = collect_doctor_status()
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print("genesis doctor")
+        for entry in report:
+            print(f"  {entry['level']:4s}  {entry['check']:10s}  {entry['detail']}")
+        fails = sum(1 for entry in report if entry["level"] == "fail")
+        warns = sum(1 for entry in report if entry["level"] == "warn")
+        if fails:
+            print(f"{fails} problem(s) need fixing")
+        elif warns:
+            print(f"{warns} warning(s), nothing blocking")
+        else:
+            print("all clear")
+    return 1 if any(entry["level"] == "fail" for entry in report) else 0
+
+
+def cmd_live(args: argparse.Namespace) -> int:
+    import os
+
+    from .live import config as live_config_module
+    from .live import service as live_service_module
+    from .live.backend import LiveBackendError
+
+    if not os.environ.get("DISPLAY"):
+        if os.environ.get("WAYLAND_DISPLAY"):
+            return _error(
+                "live wallpapers need an X11 session; Wayland has no equivalent "
+                "mechanism (use `genesis daily` for a static wallpaper)"
+            )
+        return _error("live wallpapers need an X11 display (DISPLAY is unset)")
+
+    try:
+        width, height = _parse_resolution(args.resolution)
+        # A motion bundle is defaults with taste: explicit flags win piece
+        # by piece, then the bundle, then the engine constants.
+        bundle = dict(live_config_module.MOTION_PRESETS.get(args.motion) or {})
+
+        def pick(name: str, arg: Any, default: Any) -> Any:
+            if arg is not None:
+                return arg
+            return bundle.get(name, default)
+
+        relax = pick("relax", args.relax, live_config_module.DEFAULT_RELAX)
+        if args.relax_idle is not None:
+            relax_idle = args.relax_idle
+        elif args.relax is not None:
+            relax_idle = args.relax  # --relax sets both unless split
+        else:
+            relax_idle = bundle.get(
+                "relax_idle", live_config_module.DEFAULT_RELAX_IDLE
+            )
+        config = live_config_module.LiveConfig(
+            width=width,
+            height=height,
+            fps=args.fps,
+            cursor_mode=args.mode,
+            idle_mode=args.idle,
+            stats=args.stats,
+            still=not args.no_still,
+            stir_strength=pick(
+                "stir_strength",
+                args.stir_strength,
+                live_config_module.DEFAULT_STIR_STRENGTH,
+            ),
+            relax=relax,
+            relax_idle=relax_idle,
+            yield_to_fullscreen=args.fullscreen,
+            pause_on_lock=args.pause_on_lock,
+            cap_on_battery=args.battery_cap,
+            cursor_glow=pick(
+                "cursor_glow",
+                args.cursor_glow,
+                live_config_module.DEFAULT_CURSOR_GLOW,
+            ),
+            ambient_speed=pick(
+                "ambient_speed",
+                args.ambient_speed,
+                live_config_module.DEFAULT_AMBIENT_SPEED,
+            ),
+            sharpen=pick(
+                "sharpen", args.sharpen, live_config_module.DEFAULT_SHARPEN
+            ),
+        )
+        recipe, base_path = _resolve_live_recipe(args)
+    except (OSError, ValueError, KeyError) as exc:
+        return _error(_clean(exc))
+
+    if args.dry_run:
+        source = None
+        if args.resolution.strip().lower() == "auto":
+            from . import wallpaper as wallpaper_module
+
+            source = "display" if wallpaper_module.display_size() else "fallback"
+        plan = live_service_module.describe(config, recipe, source=source)
+        if args.json:
+            print(json.dumps(plan, indent=2))
+        else:
+            print(f"live {recipe.generator} {width}x{height} at {config.fps}fps")
+            print(f"  palette {recipe.palette_name}, cursor {config.cursor_mode}, idle {config.idle_mode}")
+            print(f"  stir {config.stir_strength}, relax {config.relax}, seed {plan['recipe']['seed']}")
+            if source == "fallback":
+                print("  (no display detected; fell back to 1080p)")
+        return 0
+
+    try:
+        live_service_module.run(config, recipe, seed=args.seed, base_path=base_path)
+    except LiveBackendError as exc:
+        return _error(str(exc))
+    except (OSError, ValueError, KeyError) as exc:
+        return _error(_clean(exc))
+    return 0
+
+
+def _parse_resolution(text: str) -> tuple[int, int]:
+    """auto (the display), 1080p, 720p, or an explicit WIDTHxHEIGHT."""
+    lowered = text.strip().lower()
+    if lowered == "auto":
+        from . import wallpaper as wallpaper_module
+
+        size = wallpaper_module.display_size()
+        return size if size is not None else (1920, 1080)
+    if lowered == "1080p":
+        return 1920, 1080
+    if lowered == "720p":
+        return 1280, 720
+    if "x" in lowered:
+        width, _, height = lowered.partition("x")
+        return int(width), int(height)
+    raise ValueError(f"unknown resolution {text!r}; use auto, 1080p, 720p, or WIDTHxHEIGHT")
+
+
+def _resolve_live_recipe(args: argparse.Namespace):
+    """Pick what to animate, plus the stored still to start from, if any.
+
+    Returns `(recipe, base_path)`. Precedence is explicit recipe file, then
+    preset, then a library piece, then today's curated pick. `--from` is how a
+    generated wallpaper becomes a live one: its stored PNG becomes the base
+    layer, so the session starts pixel-identical to that composition.
+    `--from applied` follows whatever `daily`/`apply` last put on the
+    desktop, which is what the persistent live service uses.
+    """
+    from . import presets as presets_module
+    from . import scheduler as scheduler_module
+
+    if args.recipe:
+        return Recipe.load(args.recipe), None
+    if args.preset:
+        preset = presets_module.get(args.preset)
+        return preset.recipe(1920, 1080), None
+    library = _with_library(args)
+    library.open()
+    try:
+        if args.from_entry:
+            if args.from_entry == "latest":
+                entry = library.latest()
+            elif args.from_entry == "applied":
+                entry = library.most_recently_applied()
+                if entry is None:
+                    raise KeyError(
+                        "no wallpaper has been applied yet; "
+                        "run `genesis daily` first"
+                    )
+            else:
+                entry = library.get(args.from_entry) or library.find(args.from_entry)
+            if entry is None:
+                raise KeyError(f"no piece matching {args.from_entry!r}")
+            if not entry.image_path.exists():
+                raise FileNotFoundError(
+                    f"missing image for {args.from_entry!r}: {entry.image_path}"
+                )
+            return entry.recipe_object, entry.image_path
+        recipe, _reason = scheduler_module.pick_curated(
+            library, mood=args.mood, seed=args.seed
+        )
+        return recipe, None
+    finally:
+        library.close()
 
 
 def cmd_library(args: argparse.Namespace) -> int:
@@ -836,10 +1371,15 @@ HANDLERS = {
     "gen-random": cmd_gen_random,
     "list": cmd_list,
     "describe": cmd_describe,
+    "app": cmd_app,
+    "live": cmd_live,
     "apply": cmd_apply,
     "install": cmd_install,
+    "uninstall": cmd_uninstall,
+    "doctor": cmd_doctor,
     "daily": cmd_daily,
     "gallery": cmd_gallery,
+    "presets": cmd_presets,
     "library": cmd_library,
 }
 
