@@ -1,0 +1,19 @@
+# Genesis git attributes.
+#
+# Line endings: text files normalize to LF in the repo; contributors on any
+# OS check out natively. The GPL text and the systemd units must never gain
+# CRLF (units break, license diffs get noisy).
+
+* text=auto eol=lf
+
+# Binary assets: never diffed, never line-converted.
+*.png binary
+*.svg text eol=lf diff=xml
+*.desktop text eol=lf
+
+# Metadata: keep diffable as text.
+*.yml text eol=lf
+*.xml text eol=lf
+LICENSE text eol=lf
+CHANGELOG.md text eol=lf diff=markdown
+README.md text eol=lf diff=markdown

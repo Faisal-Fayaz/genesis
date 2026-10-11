@@ -6,3 +6,7 @@ __pycache__/
 .ruff_cache/
 out/
 *.png
+# flatpak-builder working trees (see flatpak/README.md).
+build-dir/
+.flatpak-builder/
+.flatpak-builder-tools/
