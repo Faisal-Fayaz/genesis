@@ -14,5 +14,5 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--update-golden",
         action="store_true",
         default=False,
-        help="Rewrite tests/golden.json from current output.",
+        help="Regenerate the reference PNGs under tests/golden/ from current output.",
     )
