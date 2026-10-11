@@ -19,18 +19,25 @@ flatpak-builder --user --install --force-clean build-dir flatpak/org.genesis.wal
 flatpak run org.genesis.wallpapers --help
 ```
 
+(flatpak-builder itself: `flatpak --user install flathub
+org.flatpak.Builder`, then `flatpak run org.flatpak.Builder ...`.)
 Build trees (`build-dir/`, `.flatpak-builder/`) are git-ignored. Re-run
 with `--force-clean` after manifest edits.
 
+Verified 2026-10-11: clean build with no warnings, `genesis --version`
+and `genesis doctor` green inside the sandbox (exact numpy/pillow pins,
+GTK and X11 present), and a headless `gen-random` render producing a
+valid PNG.
+
 ## Known unknowns (verify during the first build)
 
-1. **dconf access for wallpaper-apply.** The manifest grants
-   `--filesystem=xdg-config/dconf`, which is the starting guess for letting
-   sandboxed `genesis apply` / `genesis daily` write GNOME wallpaper keys.
-   If `gsettings set` inside the sandbox cannot see the session bus, the
-   honest fallback is documenting that wallpaper-apply runs outside the
-   sandbox (installed timer + host CLI) while the Flatpak ships the
-   renderer, library, gallery, and app UI.
+1. **dconf access for wallpaper-apply.** PARTLY VERIFIED (2026-10-11):
+   `gsettings get` on the desktop background key works from inside the
+   sandbox, so the `--filesystem=xdg-config/dconf` grant reaches the host
+   settings. Writes go through the same path but were deliberately not
+   test-built (a write test would change a real desktop's wallpaper).
+   `genesis install` inside the sandbox correctly refuses (no systemctl)
+   and points at `--print`.
 2. **The daily timer under Flatpak.** systemd user units cannot be installed
    from inside the sandbox. Decide before submission: either the Flatpak is
    the app + renderer (timer stays a host-side `genesis install` step), or
@@ -38,12 +45,13 @@ with `--force-clean` after manifest edits.
    Do not submit promising a working timer you have not tested.
 3. **Live mode in the sandbox.** Needs X11 socket (granted) and performs
    full-frame SHM blits; verify fps and SHM availability inside the
-   sandbox, plus graceful behavior on Wayland hosts.
+   sandbox, plus graceful behavior on Wayland hosts. Untested: needs a
+   real X11 session, and the sandbox was only exercised headlessly.
 4. **Runtime version.** 48 was chosen for availability; bump to current
    stable before submitting and re-run the suite against it.
-5. **Python wheels.** Built from PyPI at build time against
-   `requirements.txt` pins. If Flathub's build network restricts this,
-   vendor the wheels or switch to `pip --no-index` with a local source.
+5. ~~Python wheels need network at build time.~~ RESOLVED: wheels arrive as
+   sha256-verified file sources; the build is fully offline. Keep the two
+   runtime pins in the manifest in step with requirements.txt.
 
 ## Flathub submission checklist
 
@@ -54,6 +62,9 @@ Flathub accepts new apps via PR to
 - [ ] Manifest builds clean with `--force-clean` and the app launches.
 - [ ] `genesis doctor` inside the sandbox reports sensibly (dconf verdict
       recorded above — update this file with the outcome).
+- [ ] Switch the genesis module source from `type: dir` (local builds) to
+      `type: git` with the repository URL — Flathub does not accept local
+      directory sources.
 - [ ] Metainfo validates: `flatpak run --command=flatpak-builder-lint ...`
       or `appstreamcli validate assets/org.genesis.wallpapers.metainfo.xml`.
 - [ ] Metainfo TODOs resolved: homepage URL, 2–4 screenshots, `<releases>`

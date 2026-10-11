@@ -11,8 +11,12 @@
 #   sandbox regardless.
 # - Runtime version: 48 is chosen for wide availability; bump to the current
 #   stable GNOME runtime before submitting.
-# - Python wheels are fetched from PyPI at build time with the same pins as
-#   requirements.txt; Flathub builds allow network during build.
+# - Python wheels arrive as sha256-verified file sources (offline-safe
+#   builds, Flathub-compatible). requirements.txt stays the dev lockfile;
+#   the two runtime pins are mirrored here — keep them in step.
+# - The genesis module installs with --no-build-isolation --no-deps: the
+#   SDK provides setuptools and numpy/pillow are already in place, so the
+#   build needs no network at all.
 
 app-id: org.genesis.wallpapers
 runtime: org.gnome.Platform
@@ -32,18 +36,31 @@ modules:
   - name: python-deps
     buildsystem: simple
     build-commands:
-      - pip3 install --no-cache-dir --prefix=/app -r requirements.txt
+      # Offline-safe: wheels arrive as verified sources (below), so the build
+      # never touches PyPI. Only the runtime pins install here; pytest/ruff
+      # stay out of the shipped app. Versions mirror requirements.txt.
+      - pip3 install --no-cache-dir --prefix=/app --no-index --find-links=.
+        numpy==2.5.3 pillow==11.3.0
     sources:
       - type: file
-        path: ../requirements.txt
+        url: https://files.pythonhosted.org/packages/65/af/aa78d1a88805456e212b65461354cd943197fb9acecc4c90fd12295123a3/numpy-2.5.3-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
+        sha256: b7e18c623bb5c95acb3b3328861272816ba199fb531921c5d6d0b675f1fde9e3
+      - type: file
+        url: https://files.pythonhosted.org/packages/8d/33/e9200d2bd7ba00dc3ddb78df1198a6e80d7669cce6c2bdbeb2530a74ec58/pillow-11.3.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+        sha256: 67172f2944ebba3d4a7b54f2e95c786a3a50c21b88456329314caaa28cda70f6
 
   - name: genesis
     buildsystem: simple
     build-commands:
-      - pip3 install --no-cache-dir --prefix=/app .
+      - pip3 install --no-cache-dir --prefix=/app --no-build-isolation --no-deps .
       - install -Dm644 assets/org.genesis.wallpapers.metainfo.xml /app/share/metainfo/org.genesis.wallpapers.metainfo.xml
       - install -Dm644 assets/genesis.svg /app/share/icons/hicolor/scalable/apps/org.genesis.wallpapers.svg
       - install -Dm644 assets/genesis.desktop /app/share/applications/org.genesis.wallpapers.desktop
+      # The shipped entry is a template for host installs (`install --app`
+      # substitutes both placeholders): point it at the sandboxed binary
+      # and the app-id icon name.
+      - sed -i 's/^Exec=.*/Exec=genesis app/' /app/share/applications/org.genesis.wallpapers.desktop
+      - sed -i 's/^Icon=.*/Icon=org.genesis.wallpapers/' /app/share/applications/org.genesis.wallpapers.desktop
     sources:
       - type: dir
         path: ..

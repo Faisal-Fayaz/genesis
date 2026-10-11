@@ -35,6 +35,11 @@ the primary one. Something wrong? `genesis doctor` checks the setup and says
 what needs attention; `genesis uninstall` removes what `install` put down
 without touching your wallpapers.
 
+A Flatpak is in preparation for distribution outside developer checkouts;
+see `flatpak/README.md` for the build, what is verified, and the Flathub
+submission checklist. Until it is submitted, the venv flow above is the
+supported install.
+
 The virtual environment intentionally includes system packages. The renderer,
 tests, and library remain pinned and headless; only the native interface uses
 the operating system’s GTK and Adwaita packages, which are not pinned.

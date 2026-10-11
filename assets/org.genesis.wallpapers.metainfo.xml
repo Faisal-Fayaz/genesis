@@ -10,6 +10,9 @@
   <project_license>GPL-3.0-or-later</project_license>
   <name>Genesis</name>
   <summary>Deterministic procedural wallpapers, live and still</summary>
+  <developer id="org.genesis.wallpapers">
+    <name>Faisal Fayaz</name>
+  </developer>
   <description>
     <p>
       Genesis is a procedural wallpaper engine where every image is described
