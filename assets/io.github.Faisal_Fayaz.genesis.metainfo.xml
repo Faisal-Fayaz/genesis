@@ -3,13 +3,13 @@
      assets/screenshots/ and are served from the repository; keep
      <releases> in step with CHANGELOG.md and tags. -->
 <component type="desktop-application">
-  <id>org.genesis.wallpapers</id>
+  <id>io.github.Faisal_Fayaz.genesis</id>
   <metadata_license>FSFAP</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>Genesis</name>
   <summary>Deterministic procedural wallpapers</summary>
   <url type="homepage">https://github.com/Faisal-Fayaz/genesis</url>
-  <developer id="org.genesis.wallpapers">
+  <developer id="io.github.faisal_fayaz.genesis">
     <name>Faisal Fayaz</name>
   </developer>
   <description>
@@ -26,7 +26,7 @@
       Everything runs locally; there are no accounts and no network calls.
     </p>
   </description>
-  <launchable type="desktop-id">org.genesis.wallpapers.desktop</launchable>
+  <launchable type="desktop-id">io.github.Faisal_Fayaz.genesis.desktop</launchable>
   <categories>
     <category>Graphics</category>
   </categories>

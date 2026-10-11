@@ -237,7 +237,7 @@ class TestAppInstallation:
         entry = (apps / "genesis.desktop").read_text()
         assert "Exec=/bin/genesis app" in entry
         assert "@GENESIS_EXEC@" not in entry
-        assert "StartupWMClass=org.genesis.wallpapers" in entry
+        assert "StartupWMClass=io.github.Faisal_Fayaz.genesis" in entry
         assert (icons / "genesis.svg").exists()
 
     def test_install_app_flag_adds_desktop_files(self, tmp_path, monkeypatch) -> None:

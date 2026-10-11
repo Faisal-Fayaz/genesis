@@ -1,6 +1,6 @@
 # Genesis Flatpak packaging
 
-The manifest (`org.genesis.wallpapers.yml`) builds Genesis as a Flatpak;
+The manifest (`io.github.Faisal_Fayaz.genesis.yml`) builds Genesis as a Flatpak;
 the rest of this directory is the road to Flathub. Status: **draft, never
 built** — the first local build is the next task, not a later one.
 
@@ -15,8 +15,8 @@ flatpak install -y flathub org.gnome.Platform//48 org.gnome.Sdk//48
 From the repository root:
 
 ```sh
-flatpak-builder --user --install --force-clean build-dir flatpak/org.genesis.wallpapers.yml
-flatpak run org.genesis.wallpapers --help
+flatpak-builder --user --install --force-clean build-dir flatpak/io.github.Faisal_Fayaz.genesis.yml
+flatpak run io.github.Faisal_Fayaz.genesis --help
 ```
 
 (flatpak-builder itself: `flatpak --user install flathub
@@ -40,7 +40,7 @@ valid PNG.
    and points at `--print`.
 2. **The daily timer under Flatpak.** DECIDED: the Flatpak is the app +
    renderer; automation runs host-side through the sandboxed binary:
-   `flatpak run --command=genesis org.genesis.wallpapers daily` as the
+   `flatpak run --command=genesis io.github.Faisal_Fayaz.genesis daily` as the
    `ExecStart` of a host user unit (verified `--dry-run` paths; a full
    `daily` would apply to a real desktop and stays a host-side action).
    `genesis install` remains host-CLI territory and is documented as such.
@@ -58,7 +58,7 @@ valid PNG.
 
 Flathub accepts new apps via PR to
 [github.com/flathub/flathub](https://github.com/flathub/flathub) adding
-`org.genesis.wallpapers.yml`. Before opening it:
+`io.github.Faisal_Fayaz.genesis.yml`. Before opening it:
 
 - [x] Manifest builds clean with `--force-clean` and the app launches.
 - [x] `genesis doctor` inside the sandbox reports sensibly (dconf reads
@@ -69,7 +69,7 @@ Flathub accepts new apps via PR to
 - [x] Genesis module uses `type: git` pinned to the release tag, so local
       builds validate the exact submission artifact. Bump the tag per release.
 - [ ] Icon: `assets/genesis.svg` installed as
-      `org.genesis.wallpapers.svg` renders legibly at 16–512 px (eyeball it).
+      `io.github.Faisal_Fayaz.genesis.svg` renders legibly at 16–512 px (eyeball it).
 - [ ] Desktop entry `Exec` matches the Flatpak command layout (rewritten at
       build time — verify in the installed export).
 - [ ] OARS content rating still accurate (currently unrated/neutral).

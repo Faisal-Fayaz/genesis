@@ -6,6 +6,13 @@ aims for [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Application ID is now `io.github.Faisal_Fayaz.genesis` (was
+  `org.genesis.wallpapers`): Flathub requires the `io.github.` prefix for
+  projects without their own domain. Desktop file, metainfo, icon, and
+  manifest renamed to match; host install filenames unchanged.
+
 ### Fixed
 
 - Golden references are PNGs compared with tolerance instead of exact

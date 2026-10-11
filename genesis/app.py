@@ -45,7 +45,7 @@ Scope = Literal["params", "post"]
 Renderer = Callable[[Recipe], RenderResult]
 SeedSource = Callable[[], int]
 
-APP_ID = "org.genesis.wallpapers"
+APP_ID = "io.github.Faisal_Fayaz.genesis"
 APP_TITLE = "Genesis"
 CONFIG_VERSION = 1
 MOOD_ALL = "all"

@@ -6,4 +6,4 @@ Exec=@GENESIS_EXEC@ app
 Icon=genesis
 Terminal=false
 Categories=Graphics;GTK;
-StartupWMClass=org.genesis.wallpapers
+StartupWMClass=io.github.Faisal_Fayaz.genesis
