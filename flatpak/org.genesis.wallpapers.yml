@@ -62,5 +62,9 @@ modules:
       - sed -i 's/^Exec=.*/Exec=genesis app/' /app/share/applications/org.genesis.wallpapers.desktop
       - sed -i 's/^Icon=.*/Icon=org.genesis.wallpapers/' /app/share/applications/org.genesis.wallpapers.desktop
     sources:
-      - type: dir
-        path: ..
+      # Pinned to the release tag: reviewers build exactly what the tag
+      # contains, and local builds validate the submission artifact itself.
+      # Bump the tag on every release.
+      - type: git
+        url: https://github.com/Faisal-Fayaz/genesis.git
+        tag: v0.2.0

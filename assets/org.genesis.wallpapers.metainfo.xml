@@ -7,7 +7,7 @@
   <metadata_license>FSFAP</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>Genesis</name>
-  <summary>Deterministic procedural wallpapers, live and still</summary>
+  <summary>Deterministic procedural wallpapers</summary>
   <url type="homepage">https://github.com/Faisal-Fayaz/genesis</url>
   <developer id="org.genesis.wallpapers">
     <name>Faisal Fayaz</name>

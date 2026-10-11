@@ -38,11 +38,12 @@ valid PNG.
    test-built (a write test would change a real desktop's wallpaper).
    `genesis install` inside the sandbox correctly refuses (no systemctl)
    and points at `--print`.
-2. **The daily timer under Flatpak.** systemd user units cannot be installed
-   from inside the sandbox. Decide before submission: either the Flatpak is
-   the app + renderer (timer stays a host-side `genesis install` step), or
-   it ships a `flatpak run --command=...` wrapper the host timer calls.
-   Do not submit promising a working timer you have not tested.
+2. **The daily timer under Flatpak.** DECIDED: the Flatpak is the app +
+   renderer; automation runs host-side through the sandboxed binary:
+   `flatpak run --command=genesis org.genesis.wallpapers daily` as the
+   `ExecStart` of a host user unit (verified `--dry-run` paths; a full
+   `daily` would apply to a real desktop and stays a host-side action).
+   `genesis install` remains host-CLI territory and is documented as such.
 3. **Live mode in the sandbox.** Needs X11 socket (granted) and performs
    full-frame SHM blits; verify fps and SHM availability inside the
    sandbox, plus graceful behavior on Wayland hosts. Untested: needs a
@@ -65,9 +66,8 @@ Flathub accepts new apps via PR to
 - [x] Metainfo validates clean (`appstreamcli validate`; one warning left
       before the repo existed — homepage URL — now filled).
 - [x] Screenshots committed (app UI, silk, nebula) and wired as remote URLs.
-- [ ] Switch the genesis module source from `type: dir` (local builds) to
-      `type: git` with the repository URL — Flathub does not accept local
-      directory sources.
+- [x] Genesis module uses `type: git` pinned to the release tag, so local
+      builds validate the exact submission artifact. Bump the tag per release.
 - [ ] Icon: `assets/genesis.svg` installed as
       `org.genesis.wallpapers.svg` renders legibly at 16–512 px (eyeball it).
 - [ ] Desktop entry `Exec` matches the Flatpak command layout (rewritten at
