@@ -31,27 +31,26 @@ valid PNG.
 
 ## Known unknowns (verify during the first build)
 
-1. **dconf access for wallpaper-apply.** PARTLY VERIFIED (2026-10-11):
-   `gsettings get` on the desktop background key works from inside the
-   sandbox, so the `--filesystem=xdg-config/dconf` grant reaches the host
-   settings. Writes go through the same path but were deliberately not
-   test-built (a write test would change a real desktop's wallpaper).
-   `genesis install` inside the sandbox correctly refuses (no systemctl)
-   and points at `--print`.
+1. **dconf access for wallpaper-apply.** VERIFIED (2026-10-11): reads and a
+   round-trip write (cursor-size 24 → 48 → 24, restored) both work from
+   inside the sandbox over `--talk-name=ca.desrt.dconf` — no filesystem
+   dconf access needed, and the linter prefers it that way.
 2. **The daily timer under Flatpak.** DECIDED: the Flatpak is the app +
    renderer; automation runs host-side through the sandboxed binary:
    `flatpak run --command=genesis io.github.Faisal_Fayaz.genesis daily` as the
    `ExecStart` of a host user unit (verified `--dry-run` paths; a full
    `daily` would apply to a real desktop and stays a host-side action).
    `genesis install` remains host-CLI territory and is documented as such.
-3. **Live mode in the sandbox.** Needs X11 socket (granted) and performs
-   full-frame SHM blits; verify fps and SHM availability inside the
-   sandbox, plus graceful behavior on Wayland hosts. Untested: needs a
-   real X11 session, and the sandbox was only exercised headlessly.
-4. **Runtime version.** 48 was chosen for availability; bump to current
-   stable before submitting and re-run the suite against it.
+3. **Live mode in the sandbox.** Needs X11 socket (granted via
+   wayland+fallback-x11: X11 sessions expose it, Wayland sessions get the
+   app's clean refusal path instead). Full-frame SHM blits verified at the
+   backend level; a real-session fps run stays untested.
+4. **Runtime version.** 50 (current stable per the linter); verified with a
+   full local build, install, render, and dconf round-trip. The GNOME 50
+   SDK ships Python 3.13, so wheels ship per interpreter tag (cp312 for
+   runtime 48-era SDKs, cp313 for 50) — pip selects automatically.
 5. ~~Python wheels need network at build time.~~ RESOLVED: wheels arrive as
-   sha256-verified file sources; the build is fully offline. Keep the two
+   sha256-verified file sources; the build is fully offline. Keep the
    runtime pins in the manifest in step with requirements.txt.
 
 ## Flathub submission checklist
