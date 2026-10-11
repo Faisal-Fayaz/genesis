@@ -4,7 +4,9 @@ All notable changes to Genesis are recorded here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 aims for [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.1] — 2026-10-11
+
+Packaging and portability release: no render changes, no new features.
 
 ### Changed
 
