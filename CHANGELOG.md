@@ -4,6 +4,24 @@ All notable changes to Genesis are recorded here, newest first. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 aims for [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Golden references are PNGs compared with tolerance instead of exact
+  digests. CI proved digests host-lottery (green and red on the same
+  commit): transcendental math rounds by ulps across CPUs, while
+  same-box repeatability holds everywhere. Bounds (≤3 LSB worst, ≤0.5
+  mean) catch any visible change with wide margin; `test_determinism`
+  remains the byte-exact proof.
+- Minimum Python is 3.12: numpy 2.5 (which the goldens require) ships no
+  3.11 wheels, a fact the 3.11 CI leg discovered by failing at install.
+
+### Added
+
+- Flathub store assets: real screenshots and a finished metainfo file
+  (validates clean); first local Flatpak build verified working.
+
 ## [0.2.0] — 2026-10-11
 
 ### Added

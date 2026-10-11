@@ -1,11 +1,13 @@
 # Genesis
 
 A deterministic procedural wallpaper engine. Every image is described by a JSON
-recipe, and the same recipe always produces a byte-identical PNG.
+recipe, and the same recipe always produces the same picture — byte-identical
+on one machine, within a couple of 8-bit steps anywhere (see How
+reproducibility works).
 
 The recipe is the unit of work, not the image. Editing a parameter changes the
 result in a diff you can read and revert, and re-running years later reproduces
-the original pixels exactly.
+the original picture.
 
 ## Quick start
 
@@ -259,6 +261,13 @@ Nothing else in the render path introduces entropy: no clock, no hostname, no
 unseeded randomness. Pin a `seed` and the image is fixed; leave it null and the
 image is still fixed, because the seed is derived from the recipe's own content.
 
+One honest boundary: byte-identity holds per machine and dependency build.
+Transcendental math rounds by ulps across CPUs and libms, so two machines
+render pixels that match within a couple of 8-bit steps rather than
+bit-for-bit — identical pictures, not identical hashes. The determinism
+suite proves same-box repeatability everywhere; the golden suite proves the
+intended image everywhere.
+
 `render.render` returns a digest of the output pixels, which is what makes a
 render verifiable rather than merely repeatable.
 
@@ -292,8 +301,11 @@ so a composition tuned on a preview survives at full resolution.
 Four layers, each answering a different question:
 
 - **Determinism** (`test_determinism.py`, `test_golden.py`) — the same recipe
-  repeats, and it repeats *the intended image*. Golden digests turn any change
-  in output into a named failure. Regenerate deliberately with
+  repeats byte-identically on one machine, and it repeats *the intended
+  image* on every machine. Golden references are PNGs compared with
+  tolerance (a couple of LSBs): transcendental math rounds differently
+  across CPUs, so exact digests are host-lottery — proven by CI going red
+  and green on the same commit. Regenerate deliberately with
   `pytest --update-golden`; never to silence a failure.
 - **Composition** (`test_image_quality.py`, `test_attractor_forms.py`) — each
   generator produces a picture rather than a void: real contrast, a background

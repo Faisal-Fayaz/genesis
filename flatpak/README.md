@@ -59,19 +59,19 @@ Flathub accepts new apps via PR to
 [github.com/flathub/flathub](https://github.com/flathub/flathub) adding
 `org.genesis.wallpapers.yml`. Before opening it:
 
-- [ ] Manifest builds clean with `--force-clean` and the app launches.
-- [ ] `genesis doctor` inside the sandbox reports sensibly (dconf verdict
-      recorded above — update this file with the outcome).
+- [x] Manifest builds clean with `--force-clean` and the app launches.
+- [x] `genesis doctor` inside the sandbox reports sensibly (dconf reads
+      verified; writes deliberately untested).
+- [x] Metainfo validates clean (`appstreamcli validate`; one warning left
+      before the repo existed — homepage URL — now filled).
+- [x] Screenshots committed (app UI, silk, nebula) and wired as remote URLs.
 - [ ] Switch the genesis module source from `type: dir` (local builds) to
       `type: git` with the repository URL — Flathub does not accept local
       directory sources.
-- [ ] Metainfo validates: `flatpak run --command=flatpak-builder-lint ...`
-      or `appstreamcli validate assets/org.genesis.wallpapers.metainfo.xml`.
-- [ ] Metainfo TODOs resolved: homepage URL, 2–4 screenshots, `<releases>`
-      matching the tag.
 - [ ] Icon: `assets/genesis.svg` installed as
-      `org.genesis.wallpapers.svg` renders legibly at 16–512 px.
-- [ ] Desktop entry `Exec` matches the Flatpak command layout.
+      `org.genesis.wallpapers.svg` renders legibly at 16–512 px (eyeball it).
+- [ ] Desktop entry `Exec` matches the Flatpak command layout (rewritten at
+      build time — verify in the installed export).
 - [ ] OARS content rating still accurate (currently unrated/neutral).
 - [ ] Decide and document the timer story (item 2 above) in the app
       description or README — submitters get asked.
