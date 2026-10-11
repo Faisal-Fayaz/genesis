@@ -1,15 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- AppData metainfo for GNOME Software / Flathub (draft).
-     TODO before submission:
-     - fill in the homepage URL once the repository has a remote,
-     - add 2-4 screenshots under <screenshots> (Flathub requires them),
-     - keep <releases> in step with CHANGELOG.md and tags. -->
+<!-- AppData metainfo for GNOME Software / Flathub. Screenshots live in
+     assets/screenshots/ and are served from the repository; keep
+     <releases> in step with CHANGELOG.md and tags. -->
 <component type="desktop-application">
   <id>org.genesis.wallpapers</id>
   <metadata_license>FSFAP</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>Genesis</name>
   <summary>Deterministic procedural wallpapers, live and still</summary>
+  <url type="homepage">https://github.com/Faisal-Fayaz/genesis</url>
   <developer id="org.genesis.wallpapers">
     <name>Faisal Fayaz</name>
   </developer>
@@ -32,10 +31,29 @@
     <category>Graphics</category>
   </categories>
   <content_rating type="oars-1.0" />
+  <screenshots>
+    <screenshot type="default">
+      <caption>The native interface: mood row, preview, and live controls</caption>
+      <image>https://raw.githubusercontent.com/Faisal-Fayaz/genesis/master/assets/screenshots/app-ui.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Silk, a flowfield preset at 1280x720</caption>
+      <image>https://raw.githubusercontent.com/Faisal-Fayaz/genesis/master/assets/screenshots/silk-1280.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Nebula, a splash preset at 1280x720</caption>
+      <image>https://raw.githubusercontent.com/Faisal-Fayaz/genesis/master/assets/screenshots/nebula-1280.png</image>
+    </screenshot>
+  </screenshots>
   <releases>
+    <release version="0.2.0" date="2026-10-11">
+      <description>
+        <p>Live engine fidelity, per-wallpaper motion memory, render-queue fixes, doctor and uninstall commands.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-10-10">
       <description>
-        <p>First tagged snapshot: deterministic stills, library, daily timer, and live mode.</p>
+        <p>Initial snapshot: deterministic stills, library, daily timer, and live mode.</p>
       </description>
     </release>
   </releases>
