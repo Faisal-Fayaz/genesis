@@ -68,13 +68,30 @@ Flathub accepts new apps via PR to
 - [x] Screenshots committed (app UI, silk, nebula) and wired as remote URLs.
 - [x] Genesis module uses `type: git` pinned to the release tag, so local
       builds validate the exact submission artifact. Bump the tag per release.
-- [ ] Icon: `assets/genesis.svg` installed as
-      `io.github.Faisal_Fayaz.genesis.svg` renders legibly at 16–512 px (eyeball it).
-- [ ] Desktop entry `Exec` matches the Flatpak command layout (rewritten at
-      build time — verify in the installed export).
-- [ ] OARS content rating still accurate (currently unrated/neutral).
-- [ ] Decide and document the timer story (item 2 above) in the app
-      description or README — submitters get asked.
+- [x] Icon renders legibly (eyeballed at 256/48; dark tile with wave lines).
+- [x] Desktop entry `Exec`/`Icon` rewritten at build time (verified in the
+      installed export).
+- [x] OARS content rating accurate (unrated/neutral: no content).
+- [x] Timer story decided and documented (item 2 above).
+
+## Filing (manual by the author — read this)
+
+Flathub's AI policy forbids AI agents from opening or automating
+submission PRs, so the author files; the body below it is prepared
+(`gh pr create --body-file`). Two earlier malformed attempts (#10597 wrong
+base branch, #10598 missing checklist) were bot-closed in seconds with no
+reviewer involvement and are disclosed in the body.
+
+```sh
+gh pr create --repo flathub/flathub --base new-pr \
+  --head Faisal-Fayaz:add-genesis-newpr \
+  --title "Add io.github.Faisal_Fayaz.genesis" \
+  --body-file /tmp/flathub-pr-body.md   # prepared draft, review before sending
+```
+
+Video for the template: `assets/screenshots/live-demo.mp4` (16 s live
+session under Xvfb, committed). Fork branch `add-genesis-newpr` tracks
+flathub `new-pr` plus the manifest; force-push it after manifest changes.
 - [ ] Confirm license scanning passes: GPL-3.0-or-later, no bundled
       incompatible code (numpy/Pillow are fine).
 
