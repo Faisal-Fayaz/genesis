@@ -1,0 +1,11 @@
+{
+  "attractor_clifford": "ec5c4dbb48fc014342c24b26967df46e733c06d1c7295a99d5b278cc54c0fbf2",
+  "attractor_dejong": "ccb40275cd5bff38d3e535acc1ea0f3dbcc682d189e0bead3b18eeee85f12d1e",
+  "attractor_unscaled": "20cf1dbc8974f30855e82ee38f1b437fd68769df7cf50b5781ead94d8ee18286",
+  "flowfield_default": "b81899c35fb056391039b0039c3fc32ca750e932e5c00ebc1efc1a1f4dce6026",
+  "flowfield_ember": "efb4b459eed09165dda33a96bd8a03b9fac07c417c55f17e70ee91a866cc1619",
+  "flowfield_post": "eefc6d37e2862ae6940b5f84afc28c59bd0c7d8d1052320134c5bbc1a5328bbc",
+  "flowfield_supersampled": "dab02b288e5ae1739b850af2c599b7335c951926f614aa7cfce72f96c30bf7fb",
+  "splash_default": "9d05966c7b4bdca772d1330bc85033a606d201fa8f8a487339d66fefd2ed93ef",
+  "splash_smooth": "72bcec7a707c8228cca7c2726e6621bdfe216ebdc73a5f78813457adc7be2007"
+}

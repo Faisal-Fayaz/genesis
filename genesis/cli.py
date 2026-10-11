@@ -777,14 +777,14 @@ def collect_doctor_status() -> list[dict[str, str]]:
     def add(name: str, level: str, detail: str) -> None:
         report.append({"check": name, "level": level, "detail": detail})
 
-    if sys.version_info >= (3, 11):  # noqa: UP036 - intentional runtime gate
+    if sys.version_info >= (3, 12):  # noqa: UP036 - intentional runtime gate
         add("python", "ok", ".".join(map(str, sys.version_info[:3])))
     else:
         add(
             "python",
             "fail",
             f"{sys.version_info.major}.{sys.version_info.minor} "
-            "(genesis needs >= 3.11)",
+            "(genesis needs >= 3.12)",
         )
     add("genesis", "info", f"version {__version__}")
 

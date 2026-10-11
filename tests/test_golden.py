@@ -1,8 +1,19 @@
-"""Golden hashes: the tripwire that turns any change in output into a failure.
+"""Golden references: the tripwire that turns any visible change into a failure.
 
-Determinism tests prove a recipe repeats. These prove that what it repeats is
-still the *intended* image. Any edit to a generator, the color pipeline, or the
-post chain shifts one of these digests, which names the change that caused it.
+Determinism tests prove a recipe repeats byte-identically on one machine.
+These prove that what it repeats still *looks* like the intended image — on
+every machine. Exact pixel digests turned out to be host-lottery:
+transcendental math rounds differently across CPUs and libms, so identical
+code renders ulp-shifted pixels on different runners (proven the hard way:
+CI went green and red on the same commit, on different hosts, with
+determinism green in both runs).
+
+So the references are PNGs and the comparison is tolerant: a couple of LSBs
+at most anywhere, near-zero on average. Any real change — generator, color
+pipeline, post, framing — moves thousands of pixels by tens of steps, orders
+of magnitude above these bounds. The bounds are deliberately wide because the
+true cross-machine variance is unmeasurable from any single box; what they
+must catch is changes a person could see.
 
 Regenerate deliberately, never to silence a failure:
 
@@ -11,27 +22,34 @@ Regenerate deliberately, never to silence a failure:
 A failure here is only acceptable when the change was intended. Otherwise it
 means an edit changed the look of every image of that kind, which is a bigger
 decision than a code change.
-
-The values below are tied to the pinned numpy and Pillow in requirements.txt.
-Resampling and some image encodings are not byte-stable across library versions,
-so a dependency bump may legitimately change them.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
+from PIL import Image
 
 from genesis import render
+from genesis.canon import canonical_json
 from genesis.recipe import Recipe
 
-GOLDEN_FILE = Path(__file__).parent / "golden.json"
+GOLDEN_DIR = Path(__file__).parent / "golden"
+GOLDEN_FILE = GOLDEN_DIR / "golden.json"
 
 # Small enough to keep the suite fast, large enough that a structural change
 # cannot hide in resampling.
 SIZE = (192, 108)
+
+# Comparison bounds, in 8-bit steps. Cross-machine float noise lands far
+# below one quantum almost everywhere; a visible change moves large areas
+# by whole steps. See the module docstring for why this is tolerant at all.
+MAX_ABS_LSB = 3
+MEAN_ABS_LSB = 0.5
 
 CASES: dict[str, dict] = {
     "flowfield_default": {
@@ -116,13 +134,30 @@ def recipe_for(name: str) -> Recipe:
     return Recipe(width=SIZE[0], height=SIZE[1], **CASES[name])
 
 
-def load_golden() -> dict[str, str]:
+def reference_path(name: str) -> Path:
+    return GOLDEN_DIR / f"{name}.png"
+
+
+def recipe_hash(recipe: Recipe) -> str:
+    """A platform-independent fingerprint of the case definition itself."""
+    return hashlib.sha256(canonical_json(recipe.to_dict()).encode()).hexdigest()
+
+
+def load_hashes() -> dict[str, str]:
     if not GOLDEN_FILE.exists():
         return {}
     return json.loads(GOLDEN_FILE.read_text())
 
 
-def test_golden_file_exists() -> None:
+def as_array(image: Image.Image) -> np.ndarray:
+    return np.asarray(image.convert("RGB"), dtype=np.int16)
+
+
+def test_golden_references_exist() -> None:
+    missing = [name for name in sorted(CASES) if not reference_path(name).exists()]
+    assert not missing, (
+        f"golden references missing for {missing}; regenerate with --update-golden"
+    )
     assert GOLDEN_FILE.exists(), (
         "golden.json is missing; regenerate with --update-golden"
     )
@@ -130,60 +165,85 @@ def test_golden_file_exists() -> None:
 
 @pytest.mark.parametrize("name", sorted(CASES))
 def test_render_matches_golden(name: str) -> None:
-    golden = load_golden()
-    assert name in golden, f"{name} missing from golden.json"
-    actual = render.render(recipe_for(name)).digest
-    assert actual == golden[name], (
-        f"{name} no longer renders as recorded.\n"
-        f"  expected {golden[name]}\n"
-        f"  actual   {actual}\n"
+    expected = as_array(Image.open(reference_path(name)))
+    actual = as_array(render.render(recipe_for(name)).image)
+    assert expected.shape == actual.shape, (
+        f"{name} rendered {actual.shape}, reference is {expected.shape}"
+    )
+    gap = np.abs(actual - expected)
+    worst, mean = float(gap.max()), float(gap.mean())
+    assert worst <= MAX_ABS_LSB and mean <= MEAN_ABS_LSB, (
+        f"{name} no longer renders as recorded "
+        f"(worst {worst:.1f} steps, mean {mean:.3f}; "
+        f"bounds are {MAX_ABS_LSB} and {MEAN_ABS_LSB}).\n"
         "If this change was intended, regenerate with --update-golden."
     )
 
 
 @pytest.mark.parametrize("name", sorted(CASES))
 def test_golden_entries_are_current(name: str) -> None:
-    """Guard against a stale entry that happens to match nothing.
+    """Guard against a stale reference that happens to match nothing.
 
-    Confirms the recorded digest belongs to *this* recipe, so renaming or
-    editing a case cannot leave a passing but meaningless golden behind.
+    Confirms the recorded recipe hash belongs to *this* case definition, so
+    renaming or editing a case cannot leave a passing but meaningless golden
+    behind. Recipe hashes are pure data: identical on every machine.
     """
-    golden = load_golden()
-    assert golden[name] == render.render(recipe_for(name)).digest
+    hashes = load_hashes()
+    assert name in hashes, f"{name} missing from golden.json"
+    assert hashes[name] == recipe_hash(recipe_for(name))
 
 
 class TestCasesAreDistinct:
     """Each case must cover ground the others do not."""
 
-    def test_every_case_differs_from_every_other(self) -> None:
-        digests = {
-            name: render.render(recipe_for(name)).digest for name in sorted(CASES)
+    def _images(self) -> dict[str, np.ndarray]:
+        return {
+            name: as_array(render.render(recipe_for(name)).image)
+            for name in sorted(CASES)
         }
-        assert len(set(digests.values())) == len(digests), (
-            f"two cases render identically: {digests}"
-        )
+
+    def test_every_case_differs_from_every_other(self) -> None:
+        images = self._images()
+        names = sorted(images)
+        for i, first in enumerate(names):
+            for second in names[i + 1 :]:
+                gap = float(
+                    np.abs(images[first] - images[second]).mean()
+                )
+                assert gap > 1.0, f"{first} and {second} render alike ({gap:.3f})"
 
     def test_supersampling_matters(self) -> None:
-        assert (
-            render.render(recipe_for("flowfield_supersampled")).digest
-            != render.render(recipe_for("flowfield_default")).digest
+        images = self._images()
+        gap = float(
+            np.abs(
+                images["flowfield_supersampled"] - images["flowfield_default"]
+            ).mean()
         )
+        assert gap > 1.0
 
     def test_framing_matters(self) -> None:
-        assert (
-            render.render(recipe_for("attractor_clifford")).digest
-            != render.render(recipe_for("attractor_unscaled")).digest
+        images = self._images()
+        gap = float(
+            np.abs(
+                images["attractor_clifford"] - images["attractor_unscaled"]
+            ).mean()
         )
+        assert gap > 1.0
 
 
 def _update() -> None:
-    golden = {name: render.render(recipe_for(name)).digest for name in sorted(CASES)}
-    GOLDEN_FILE.write_text(json.dumps(golden, indent=2, sort_keys=True) + "\n")
+    GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
+    hashes = {}
+    for name in sorted(CASES):
+        recipe = recipe_for(name)
+        render.render(recipe).image.save(reference_path(name), format="PNG")
+        hashes[name] = recipe_hash(recipe)
+    GOLDEN_FILE.write_text(json.dumps(hashes, indent=2, sort_keys=True) + "\n")
 
 
 @pytest.fixture(autouse=True)
 def regenerate_if_requested(request):
-    """Recreate golden.json when the suite is invoked with --update-golden."""
+    """Recreate golden references when invoked with --update-golden."""
     if request.config.getoption("--update-golden", default=False):
         _update()
-        pytest.skip("golden hashes regenerated")
+        pytest.skip("golden references regenerated")

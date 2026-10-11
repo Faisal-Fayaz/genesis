@@ -6,6 +6,9 @@ __pycache__/
 .ruff_cache/
 out/
 *.png
+# ...except the artifacts that ARE the product: golden references and docs.
+!tests/golden/*.png
+!assets/screenshots/*.png
 # flatpak-builder working trees (see flatpak/README.md).
 build-dir/
 .flatpak-builder/

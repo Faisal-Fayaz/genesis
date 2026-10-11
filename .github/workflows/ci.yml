@@ -16,14 +16,13 @@ on:
 jobs:
   lint-and-fast-tests:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          # The pins demand 3.12+ (numpy 2.5 has no 3.11 wheels); the 3.11
+          # leg died at pip install, which is how we learned that.
+          python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: python -m ruff check genesis tests conftest.py
       - run: >
